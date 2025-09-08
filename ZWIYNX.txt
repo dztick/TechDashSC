@@ -44,8 +44,8 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 applyBuff(lastHitTarget)
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
                 if targetRoot then
-                    local direction = (targetRoot.Position - currentRoot.Position).Unit
-                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + direction)
+                    local dir = (targetRoot.Position - currentRoot.Position).Unit
+                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
                 end
             end
         end)
@@ -79,8 +79,8 @@ RunService.RenderStepped:Connect(function()
     lastRootPos = currentRoot.Position
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local direction = (targetRoot.Position - currentRoot.Position).Unit
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + direction)
+        local dir = (targetRoot.Position - currentRoot.Position).Unit
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
     end
 end)
 
