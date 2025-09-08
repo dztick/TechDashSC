@@ -3,6 +3,7 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 2
@@ -38,6 +39,18 @@ local function applyBuff(target)
     end
 end
 
+local function getDashDirection(targetPos)
+    local rootPos = currentRoot.Position
+    local cam = Workspace.CurrentCamera
+    local horizontalDir = (Vector3.new(targetPos.X, rootPos.Y, targetPos.Z) - rootPos).Unit
+    if UIS.MouseBehavior == Enum.MouseBehavior.LockCenter then
+        return horizontalDir
+    else
+        local dot = cam.CFrame.LookVector:Dot(horizontalDir)
+        return horizontalDir * math.sign(dot)
+    end
+end
+
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
@@ -45,7 +58,7 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 applyBuff(lastHitTarget)
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
                 if targetRoot then
-                    local dir = (targetRoot.Position + lockOffset - currentRoot.Position).Unit
+                    local dir = getDashDirection(targetRoot.Position + lockOffset)
                     currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
                 end
             end
@@ -80,7 +93,7 @@ RunService.RenderStepped:Connect(function()
     lastRootPos = currentRoot.Position
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local dir = (targetRoot.Position + lockOffset - currentRoot.Position).Unit
+        local dir = getDashDirection(targetRoot.Position + lockOffset)
         currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
     end
 end)
