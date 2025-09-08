@@ -8,14 +8,12 @@ local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 2
 local DASH_LERP_SPEED = 0.25
 local ANTI_KNOCKBACK_FORCE = 0.5
-local LOCK_HEIGHT_OFFSET = -3 -- posisi dash di bawah musuh
 
 local lastHitTarget = nil
 local LOCK_ENABLED = true
 local currentRoot = nil
 local lastRootPos = nil
 
--- GUI kecil hijau/merah
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
 local StatusBox = Instance.new("Frame", ScreenGui)
@@ -47,8 +45,7 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
                 if targetRoot then
                     local direction = (targetRoot.Position - currentRoot.Position).Unit
-                    local dashPos = targetRoot.Position + Vector3.new(0, LOCK_HEIGHT_OFFSET, 0)
-                    currentRoot.CFrame = CFrame.new(dashPos, dashPos + direction)
+                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + direction)
                 end
             end
         end)
@@ -73,7 +70,6 @@ end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-
     if lastRootPos then
         local delta = currentRoot.Position - lastRootPos
         if LOCK_ENABLED and delta.Magnitude > 1 then
@@ -81,12 +77,10 @@ RunService.RenderStepped:Connect(function()
         end
     end
     lastRootPos = currentRoot.Position
-
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local dashPos = targetRoot.Position + Vector3.new(0, LOCK_HEIGHT_OFFSET, 0)
-        local direction = (dashPos - currentRoot.Position).Unit
-        currentRoot.CFrame = CFrame.new(dashPos, dashPos + direction)
+        local direction = (targetRoot.Position - currentRoot.Position).Unit
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + direction)
     end
 end)
 
