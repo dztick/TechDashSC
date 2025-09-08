@@ -2,14 +2,13 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local NO_KNOCKBACK_MASS = 2000
 local HITBOX_MULT = 2
-local DASH_LERP_SPEED = 0.35
+local DASH_LERP_SPEED = 0.25
 local ANTI_KNOCKBACK_FORCE = 0.5
+local LOCK_HEIGHT_OFFSET = -3 -- posisi dash di bawah musuh
 
 local lastHitTarget = nil
 local LOCK_ENABLED = true
@@ -32,29 +31,25 @@ local function updateGUI()
     StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
-local function supaTech(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") or not currentRoot then return end
-    local targetPos = target.HumanoidRootPart.Position
-    currentRoot.CFrame = CFrame.new(targetPos)
-end
-
 local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-    target.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(NO_KNOCKBACK_MASS,0.3,0.5)
-    if LOCK_ENABLED then
-        local hitbox = target:FindFirstChildWhichIsA("Part") or target:FindFirstChild("HumanoidRootPart")
-        if hitbox then
-            hitbox.Size = hitbox.Size * HITBOX_MULT
-        end
+    local hitbox = target:FindFirstChildWhichIsA("Part") or target:FindFirstChild("HumanoidRootPart")
+    if hitbox then
+        hitbox.Size = hitbox.Size * HITBOX_MULT
     end
 end
 
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
-            if lastHitTarget then
-                supaTech(lastHitTarget)
+            if lastHitTarget and currentRoot then
                 applyBuff(lastHitTarget)
+                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+                if targetRoot then
+                    local direction = (targetRoot.Position - currentRoot.Position).Unit
+                    local dashPos = targetRoot.Position + Vector3.new(0, LOCK_HEIGHT_OFFSET, 0)
+                    currentRoot.CFrame = CFrame.new(dashPos, dashPos + direction)
+                end
             end
         end)
     end
@@ -79,7 +74,6 @@ end)
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
 
-    -- Anti-knockback
     if lastRootPos then
         local delta = currentRoot.Position - lastRootPos
         if LOCK_ENABLED and delta.Magnitude > 1 then
@@ -88,12 +82,11 @@ RunService.RenderStepped:Connect(function()
     end
     lastRootPos = currentRoot.Position
 
-    -- Lock target last hit
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local currentCFrame = currentRoot.CFrame
-        local targetCFrame = CFrame.new(targetRoot.Position)
-        currentRoot.CFrame = currentCFrame:Lerp(targetCFrame, DASH_LERP_SPEED)
+        local dashPos = targetRoot.Position + Vector3.new(0, LOCK_HEIGHT_OFFSET, 0)
+        local direction = (dashPos - currentRoot.Position).Unit
+        currentRoot.CFrame = CFrame.new(dashPos, dashPos + direction)
     end
 end)
 
