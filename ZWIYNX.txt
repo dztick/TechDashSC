@@ -9,20 +9,19 @@ local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 3
 local DASH_LERP_SPEED = 0.3
 local ANTI_KNOCKBACK_FORCE = 0.5
-local CHAIN_RADIUS = 15
+local lockOffset = Vector3.new(0,5,0)
 
 local lastHitTarget = nil
-local LOCK_ENABLED = true
+local LOCK_ENABLED = false
 local currentRoot = nil
 local lastRootPos = nil
-local lockOffset = Vector3.new(0,5,0)
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
 local StatusBox = Instance.new("Frame", ScreenGui)
 StatusBox.Size = UDim2.new(0,20,0,20)
 StatusBox.Position = UDim2.new(1,-30,1,-30)
-StatusBox.BackgroundColor3 = Color3.fromRGB(0,255,0)
+StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateLastHit(target)
     lastHitTarget = target
@@ -46,33 +45,15 @@ local function getDashDirection(targetPos)
     return Vector3.new(dir.X, dir.Y, dir.Z)
 end
 
-local function getNearbyTargets()
-    local targets = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (currentRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
-            if distance <= CHAIN_RADIUS then
-                table.insert(targets, p.Character)
-            end
-        end
-    end
-    return targets
-end
-
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
-            if lastHitTarget and currentRoot then
+            if LOCK_ENABLED and lastHitTarget and currentRoot then
                 applyBuff(lastHitTarget)
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
                 if targetRoot then
                     local dir = getDashDirection(targetRoot.Position + lockOffset)
                     currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-                end
-                for _, chainTarget in ipairs(getNearbyTargets()) do
-                    if chainTarget and chainTarget:FindFirstChild("HumanoidRootPart") then
-                        applyBuff(chainTarget)
-                    end
                 end
             end
         end)
@@ -89,7 +70,7 @@ UIS.InputBegan:Connect(function(input, gpe)
                 updateLastHit(mouse.Target.Parent)
             end
         end
-    elseif input.KeyCode == Enum.KeyCode.R then
+    elseif input.KeyCode == Enum.KeyCode.R then -- tombol toggle ON/OFF
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     end
