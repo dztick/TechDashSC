@@ -10,6 +10,7 @@ local SUPA_TECH_FLOAT_HEIGHT = 5
 local SUPA_TECH_FLOAT_TIME = 0.15
 local TARGET_LOCK_TIME = 2
 local NO_KNOCKBACK_MASS = 2000
+local HITBOX_MULT = 1.5
 
 local lastHitTarget = nil
 local lastHitTime = 0
@@ -51,6 +52,12 @@ end
 local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
     target.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(NO_KNOCKBACK_MASS,0.3,0.5)
+    if LOCK_ENABLED then
+        local hitbox = target:FindFirstChildWhichIsA("Part") or target:FindFirstChild("HumanoidRootPart")
+        if hitbox then
+            hitbox.Size = hitbox.Size * HITBOX_MULT
+        end
+    end
 end
 
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
@@ -89,5 +96,12 @@ RunService.RenderStepped:Connect(function()
         local currentCFrame = root.CFrame
         local targetDir = CFrame.new(root.Position, targetRoot.Position)
         root.CFrame = currentCFrame:Lerp(targetDir, 0.2)
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if lastHitTarget then
+        applyBuff(lastHitTarget)
     end
 end)
