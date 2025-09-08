@@ -8,44 +8,35 @@ local UIS = game:GetService("UserInputService")
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local SUPA_TECH_FLOAT_HEIGHT = 5
 local SUPA_TECH_FLOAT_TIME = 0.15
-local TARGET_LOCK_TIME = 2
 local NO_KNOCKBACK_MASS = 2000
 local HITBOX_MULT = 1.5
 
 local lastHitTarget = nil
-local lastHitTime = 0
-local LOCK_ENABLED = false
+local LOCK_ENABLED = true
 local currentRoot = nil
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-local StatusLabel = Instance.new("TextLabel", ScreenGui)
-StatusLabel.Size = UDim2.new(0,120,0,40)
-StatusLabel.Position = UDim2.new(1,-130,1,-50)
-StatusLabel.BackgroundColor3 = Color3.fromRGB(255,0,0)
-StatusLabel.TextColor3 = Color3.fromRGB(255,255,255)
-StatusLabel.TextScaled = true
-StatusLabel.Text = "LOCK OFF"
+local StatusBox = Instance.new("Frame", ScreenGui)
+StatusBox.Size = UDim2.new(0,20,0,20)
+StatusBox.Position = UDim2.new(1,-30,1,-30)
+StatusBox.BackgroundColor3 = Color3.fromRGB(0,255,0)
 
 local function updateLastHit(target)
     lastHitTarget = target
-    lastHitTime = tick()
 end
 
 local function updateGUI()
     if LOCK_ENABLED then
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(0,255,0)
-        StatusLabel.Text = "LOCK ON"
+        StatusBox.BackgroundColor3 = Color3.fromRGB(0,255,0)
     else
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(255,0,0)
-        StatusLabel.Text = "LOCK OFF"
+        StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
     end
 end
 
 local function supaTech(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") or not currentRoot then return end
     local targetPos = target.HumanoidRootPart.Position + Vector3.new(0,SUPA_TECH_FLOAT_HEIGHT,0)
-    local tweenInfo = TweenInfo.new(SUPA_TECH_FLOAT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    TweenService:Create(currentRoot, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+    TweenService:Create(currentRoot, TweenInfo.new(SUPA_TECH_FLOAT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = CFrame.new(targetPos)}):Play()
 end
 
 local function applyBuff(target)
@@ -62,7 +53,7 @@ end
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
-            if lastHitTarget and tick() - lastHitTime <= TARGET_LOCK_TIME then
+            if lastHitTarget then
                 supaTech(lastHitTarget)
                 applyBuff(lastHitTarget)
             end
@@ -80,15 +71,12 @@ UIS.InputBegan:Connect(function(input, gpe)
                 updateLastHit(mouse.Target.Parent)
             end
         end
-    elseif input.KeyCode == Enum.KeyCode.T then
-        LOCK_ENABLED = not LOCK_ENABLED
-        updateGUI()
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not LOCK_ENABLED then return end
-    if not lastHitTarget or tick() - lastHitTime > TARGET_LOCK_TIME then return end
+    if not lastHitTarget then return end
     if not currentRoot then return end
     local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
     if targetRoot then
@@ -100,13 +88,10 @@ end)
 
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
-    if lastHitTarget then
-        applyBuff(lastHitTarget)
-    end
 end
 
 if LocalPlayer.Character then
     onCharacterAdded(LocalPlayer.Character)
 end
-
 LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+updateGUI()
