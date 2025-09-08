@@ -9,7 +9,6 @@ local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 2
 local DASH_LERP_SPEED = 0.25
 local ANTI_KNOCKBACK_FORCE = 0.5
-local CHAIN_RANGE = 20
 
 local lastHitTarget = nil
 local LOCK_ENABLED = true
@@ -42,20 +41,8 @@ end
 
 local function getDashDirection(targetPos)
     local rootPos = currentRoot.Position
-    local horizontalDir = Vector3.new(targetPos.X - rootPos.X, 0, targetPos.Z - rootPos.Z).Unit
-    return horizontalDir
-end
-
-local function findChainTarget(currentTarget)
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (plr.Character.HumanoidRootPart.Position - currentTarget.HumanoidRootPart.Position).Magnitude
-            if dist <= CHAIN_RANGE then
-                return plr.Character
-            end
-        end
-    end
-    return nil
+    local dir = (targetPos - rootPos).Unit
+    return dir
 end
 
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
@@ -67,10 +54,6 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 if targetRoot then
                     local dir = getDashDirection(targetRoot.Position + lockOffset)
                     currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-                end
-                local chainTarget = findChainTarget(lastHitTarget)
-                if chainTarget then
-                    lastHitTarget = chainTarget
                 end
             end
         end)
@@ -87,7 +70,7 @@ UIS.InputBegan:Connect(function(input, gpe)
                 updateLastHit(mouse.Target.Parent)
             end
         end
-    elseif input.KeyCode == Enum.KeyCode.T then
+    elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     end
