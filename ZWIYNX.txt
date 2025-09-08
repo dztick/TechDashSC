@@ -11,8 +11,8 @@ local LOCK_OFFSET = Vector3.new(0,5,0)
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
+local isUppercutActive = false
 
--- GUI Status
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
 local StatusBox = Instance.new("Frame", ScreenGui)
@@ -52,6 +52,10 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        isUppercutActive = true
+        wait(0.5)
+        isUppercutActive = false
     end
 end)
 
@@ -59,9 +63,14 @@ RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
-        local lookVector = Vector3.new(dir.X, dir.Y, dir.Z)
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + lookVector)
+        if isUppercutActive then
+            local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+            local rotX = math.sin(tick()*10)*0.2
+            local rotY = math.cos(tick()*10)*0.2
+            local rotZ = 0
+            currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir) *
+                                CFrame.Angles(rotX, rotY, rotZ)
+        end
     end
 end)
 
@@ -75,7 +84,11 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
                 if targetRoot then
                     local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
-                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+                    local rotX = math.sin(tick()*10)*0.2
+                    local rotY = math.cos(tick()*10)*0.2
+                    local rotZ = 0
+                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir) *
+                                        CFrame.Angles(rotX, rotY, rotZ)
                 end
             end
         end)
