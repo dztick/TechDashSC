@@ -6,9 +6,10 @@ local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local HITBOX_MULT = 2
-local DASH_LERP_SPEED = 0.25
+local HITBOX_MULT = 3
+local DASH_LERP_SPEED = 0.3
 local ANTI_KNOCKBACK_FORCE = 0.5
+local CHAIN_RADIUS = 15
 
 local lastHitTarget = nil
 local LOCK_ENABLED = true
@@ -42,7 +43,20 @@ end
 local function getDashDirection(targetPos)
     local rootPos = currentRoot.Position
     local dir = (targetPos - rootPos).Unit
-    return dir
+    return Vector3.new(dir.X, dir.Y, dir.Z)
+end
+
+local function getNearbyTargets()
+    local targets = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (currentRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if distance <= CHAIN_RADIUS then
+                table.insert(targets, p.Character)
+            end
+        end
+    end
+    return targets
 end
 
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
@@ -54,6 +68,11 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
                 if targetRoot then
                     local dir = getDashDirection(targetRoot.Position + lockOffset)
                     currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+                end
+                for _, chainTarget in ipairs(getNearbyTargets()) do
+                    if chainTarget and chainTarget:FindFirstChild("HumanoidRootPart") then
+                        applyBuff(chainTarget)
+                    end
                 end
             end
         end)
@@ -78,6 +97,7 @@ end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
+
     if lastRootPos then
         local delta = currentRoot.Position - lastRootPos
         if LOCK_ENABLED and delta.Magnitude > 1 then
@@ -85,10 +105,16 @@ RunService.RenderStepped:Connect(function()
         end
     end
     lastRootPos = currentRoot.Position
+
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
         local dir = getDashDirection(targetRoot.Position + lockOffset)
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+        local lookY = currentRoot.CFrame.LookVector.Y
+        if targetRoot.Position.Y > currentRoot.Position.Y then
+            lookY = dir.Y
+        end
+        local newLook = Vector3.new(dir.X, lookY, dir.Z)
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + newLook)
     end
 end)
 
