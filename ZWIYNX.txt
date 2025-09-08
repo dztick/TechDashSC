@@ -14,6 +14,7 @@ local HITBOX_MULT = 1.5
 local lastHitTarget = nil
 local LOCK_ENABLED = true
 local currentRoot = nil
+local isAboveTarget = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 local StatusBox = Instance.new("Frame", ScreenGui)
@@ -26,16 +27,13 @@ local function updateLastHit(target)
 end
 
 local function updateGUI()
-    if LOCK_ENABLED then
-        StatusBox.BackgroundColor3 = Color3.fromRGB(0,255,0)
-    else
-        StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
-    end
+    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function supaTech(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") or not currentRoot then return end
     local targetPos = target.HumanoidRootPart.Position + Vector3.new(0,SUPA_TECH_FLOAT_HEIGHT,0)
+    isAboveTarget = true
     TweenService:Create(currentRoot, TweenInfo.new(SUPA_TECH_FLOAT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = CFrame.new(targetPos)}):Play()
 end
 
@@ -71,23 +69,30 @@ UIS.InputBegan:Connect(function(input, gpe)
                 updateLastHit(mouse.Target.Parent)
             end
         end
+    elseif input.KeyCode == Enum.KeyCode.T then
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not LOCK_ENABLED then return end
-    if not lastHitTarget then return end
-    if not currentRoot then return end
+    if not lastHitTarget or not currentRoot then return end
     local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
     if targetRoot then
         local currentCFrame = currentRoot.CFrame
-        local targetDir = CFrame.new(currentRoot.Position, targetRoot.Position)
-        currentRoot.CFrame = currentCFrame:Lerp(targetDir, 0.2)
+        local targetCFrame = CFrame.new(targetRoot.Position + Vector3.new(0,SUPA_TECH_FLOAT_HEIGHT,0))
+        if isAboveTarget then
+            currentRoot.CFrame = targetCFrame
+        else
+            currentRoot.CFrame = currentCFrame:Lerp(CFrame.new(currentRoot.Position, targetRoot.Position), 0.2)
+        end
     end
 end)
 
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
+    isAboveTarget = false
 end
 
 if LocalPlayer.Character then
