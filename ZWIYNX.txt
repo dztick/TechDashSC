@@ -3,19 +3,16 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 3
-local DASH_LERP_SPEED = 0.3
-local ANTI_KNOCKBACK_FORCE = 0.5
-local lockOffset = Vector3.new(0,5,0)
+local LOCK_OFFSET = Vector3.new(0,5,0)
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
-local lastRootPos = nil
 
+-- GUI Status
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
 local StatusBox = Instance.new("Frame", ScreenGui)
@@ -23,41 +20,24 @@ StatusBox.Size = UDim2.new(0,20,0,20)
 StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
-local function updateLastHit(target)
-    lastHitTarget = target
-end
-
 local function updateGUI()
     StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
+local function updateLastHit(target)
+    lastHitTarget = target
+end
+
 local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-    local hitbox = target:FindFirstChildWhichIsA("Part") or target:FindFirstChild("HumanoidRootPart")
-    if hitbox then
-        hitbox.Size = hitbox.Size * HITBOX_MULT
+    local part = target:FindFirstChild("HumanoidRootPart")
+    if part then
+        part.Size = part.Size * HITBOX_MULT
     end
 end
 
 local function getDashDirection(targetPos)
-    local rootPos = currentRoot.Position
-    local dir = (targetPos - rootPos).Unit
-    return Vector3.new(dir.X, dir.Y, dir.Z)
-end
-
-for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
-        obj.OnClientEvent:Connect(function()
-            if LOCK_ENABLED and lastHitTarget and currentRoot then
-                applyBuff(lastHitTarget)
-                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-                if targetRoot then
-                    local dir = getDashDirection(targetRoot.Position + lockOffset)
-                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-                end
-            end
-        end)
-    end
+    return (targetPos - currentRoot.Position).Unit
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -65,12 +45,11 @@ UIS.InputBegan:Connect(function(input, gpe)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LocalPlayer:GetMouse()
         if mouse.Target and mouse.Target.Parent then
-            local targetHumanoid = mouse.Target.Parent:FindFirstChild("Humanoid")
-            if targetHumanoid and Players:FindFirstChild(mouse.Target.Parent.Name) then
+            if Players:FindFirstChild(mouse.Target.Parent.Name) then
                 updateLastHit(mouse.Target.Parent)
             end
         end
-    elseif input.KeyCode == Enum.KeyCode.R then -- tombol toggle ON/OFF
+    elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     end
@@ -78,26 +57,30 @@ end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-
-    if lastRootPos then
-        local delta = currentRoot.Position - lastRootPos
-        if LOCK_ENABLED and delta.Magnitude > 1 then
-            currentRoot.CFrame = CFrame.new(lastRootPos:Lerp(currentRoot.Position, ANTI_KNOCKBACK_FORCE))
-        end
-    end
-    lastRootPos = currentRoot.Position
-
     if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local dir = getDashDirection(targetRoot.Position + lockOffset)
-        local lookY = currentRoot.CFrame.LookVector.Y
-        if targetRoot.Position.Y > currentRoot.Position.Y then
-            lookY = dir.Y
-        end
-        local newLook = Vector3.new(dir.X, lookY, dir.Z)
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + newLook)
+        local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+        local lookVector = Vector3.new(dir.X, dir.Y, dir.Z)
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + lookVector)
     end
 end)
+
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if lastHitTarget and currentRoot then
+                LOCK_ENABLED = true
+                updateGUI()
+                applyBuff(lastHitTarget)
+                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+                if targetRoot then
+                    local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+                    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+                end
+            end
+        end)
+    end
+end
 
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
