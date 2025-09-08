@@ -15,6 +15,7 @@ local HITBOX_MULT = 1.5
 local lastHitTarget = nil
 local lastHitTime = 0
 local LOCK_ENABLED = false
+local currentRoot = nil
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 local StatusLabel = Instance.new("TextLabel", ScreenGui)
@@ -41,12 +42,10 @@ local function updateGUI()
 end
 
 local function supaTech(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not target or not target:FindFirstChild("HumanoidRootPart") or not currentRoot then return end
     local targetPos = target.HumanoidRootPart.Position + Vector3.new(0,SUPA_TECH_FLOAT_HEIGHT,0)
     local tweenInfo = TweenInfo.new(SUPA_TECH_FLOAT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+    TweenService:Create(currentRoot, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
 end
 
 local function applyBuff(target)
@@ -90,18 +89,24 @@ end)
 RunService.RenderStepped:Connect(function()
     if not LOCK_ENABLED then return end
     if not lastHitTarget or tick() - lastHitTime > TARGET_LOCK_TIME then return end
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not currentRoot then return end
     local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-    if root and targetRoot then
-        local currentCFrame = root.CFrame
-        local targetDir = CFrame.new(root.Position, targetRoot.Position)
-        root.CFrame = currentCFrame:Lerp(targetDir, 0.2)
+    if targetRoot then
+        local currentCFrame = currentRoot.CFrame
+        local targetDir = CFrame.new(currentRoot.Position, targetRoot.Position)
+        currentRoot.CFrame = currentCFrame:Lerp(targetDir, 0.2)
     end
 end)
 
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
+local function onCharacterAdded(char)
+    currentRoot = char:WaitForChild("HumanoidRootPart")
     if lastHitTarget then
         applyBuff(lastHitTarget)
     end
-end)
+end
+
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
+
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
