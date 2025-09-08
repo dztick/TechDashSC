@@ -1,0 +1,93 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+
+local DASH_REMOTE_NAME = "Forward Dash Attack"
+local SUPA_TECH_FLOAT_HEIGHT = 5
+local SUPA_TECH_FLOAT_TIME = 0.15
+local TARGET_LOCK_TIME = 2
+local NO_KNOCKBACK_MASS = 2000
+
+local lastHitTarget = nil
+local lastHitTime = 0
+local LOCK_ENABLED = false
+
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+local StatusLabel = Instance.new("TextLabel", ScreenGui)
+StatusLabel.Size = UDim2.new(0,120,0,40)
+StatusLabel.Position = UDim2.new(1,-130,1,-50)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(255,0,0)
+StatusLabel.TextColor3 = Color3.fromRGB(255,255,255)
+StatusLabel.TextScaled = true
+StatusLabel.Text = "LOCK OFF"
+
+local function updateLastHit(target)
+    lastHitTarget = target
+    lastHitTime = tick()
+end
+
+local function updateGUI()
+    if LOCK_ENABLED then
+        StatusLabel.BackgroundColor3 = Color3.fromRGB(0,255,0)
+        StatusLabel.Text = "LOCK ON"
+    else
+        StatusLabel.BackgroundColor3 = Color3.fromRGB(255,0,0)
+        StatusLabel.Text = "LOCK OFF"
+    end
+end
+
+local function supaTech(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local targetPos = target.HumanoidRootPart.Position + Vector3.new(0,SUPA_TECH_FLOAT_HEIGHT,0)
+    local tweenInfo = TweenInfo.new(SUPA_TECH_FLOAT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(targetPos)}):Play()
+end
+
+local function applyBuff(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+    target.HumanoidRootPart.CustomPhysicalProperties = PhysicalProperties.new(NO_KNOCKBACK_MASS,0.3,0.5)
+end
+
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if lastHitTarget and tick() - lastHitTime <= TARGET_LOCK_TIME then
+                supaTech(lastHitTarget)
+                applyBuff(lastHitTarget)
+            end
+        end)
+    end
+end
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = LocalPlayer:GetMouse()
+        if mouse.Target and mouse.Target.Parent then
+            local targetHumanoid = mouse.Target.Parent:FindFirstChild("Humanoid")
+            if targetHumanoid and Players:FindFirstChild(mouse.Target.Parent.Name) then
+                updateLastHit(mouse.Target.Parent)
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.T then
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not LOCK_ENABLED then return end
+    if not lastHitTarget or tick() - lastHitTime > TARGET_LOCK_TIME then return end
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+    if root and targetRoot then
+        local currentCFrame = root.CFrame
+        local targetDir = CFrame.new(root.Position, targetRoot.Position)
+        root.CFrame = currentCFrame:Lerp(targetDir, 0.2)
+    end
+end)
