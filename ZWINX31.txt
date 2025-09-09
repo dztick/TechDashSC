@@ -93,7 +93,7 @@ player.CharacterAdded:Connect(function(newChar)
 	root = newChar:WaitForChild("HumanoidRootPart")
 end)
 
-RunService.RenderStepped:Connect(function()
+RunService.Stepped:Connect(function()
 	if not root or not humanoid then return end
 
 	local dashPlaying, dashEndPlaying = false, false
@@ -108,14 +108,11 @@ RunService.RenderStepped:Connect(function()
 		local targetPos = tr.Position
 		local myPos = root.Position
 
-		-- jika target lebih tinggi darimu (knock-up/uppercut) → dash lurus ke atas
 		if dashPlaying or blockLock then
 			if targetPos.Y > myPos.Y + 2 then
-				local targetC = CFrame.new(myPos, Vector3.new(targetPos.X, targetPos.Y, targetPos.Z))
-				root.CFrame = root.CFrame:Lerp(targetC, 0.7)
+				root.CFrame = CFrame.new(myPos, Vector3.new(targetPos.X, targetPos.Y, targetPos.Z))
 			else
-				local targetC = CFrame.new(myPos, targetPos)
-				root.CFrame = root.CFrame:Lerp(targetC, 0.6)
+				root.CFrame = CFrame.new(myPos, targetPos)
 			end
 		end
 	end
