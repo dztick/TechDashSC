@@ -3,7 +3,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-
 local LOCK_KEY = Enum.KeyCode.R
 local BLOCK_KEY = Enum.KeyCode.F
 
@@ -32,71 +31,6 @@ local function setGUI(on)
 	box.BackgroundColor3 = on and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
-local function clearLastTarget()
-	lastTarget = nil
-end
-
-local function attachHealthWatcher(p)
-	if not p or p == player then return end
-	local function onChar(c)
-		local ok, hum = pcall(function() return c:WaitForChild("Humanoid",5) end)
-		if not ok or not hum then return end
-		hum.HealthChanged:Connect(function(h)
-			if h > 0 and h < hum.MaxHealth then
-				lastTarget = p
-				print("[Lock] lastTarget set by HealthChanged ->", p.Name)
-			elseif h <= 0 and lastTarget == p then
-				lastTarget = nil
-				lockMode = false
-				setGUI(false)
-				print("[Lock] lastTarget died -> cleared")
-			end
-		end)
-	end
-	p.CharacterAdded:Connect(onChar)
-	if p.Character then
-		task.spawn(onChar, p.Character)
-	end
-end
-
-for _,p in pairs(Players:GetPlayers()) do
-	attachHealthWatcher(p)
-end
-Players.PlayerAdded:Connect(function(pl) attachHealthWatcher(pl) end)
-
-local mouse = player:GetMouse()
-mouse.Button1Down:Connect(function()
-	if mouse.Target and mouse.Target.Parent then
-		local mdl = mouse.Target.Parent
-		local pl = Players:FindFirstChild(mdl.Name)
-		if pl then
-			lastTarget = pl
-			print("[Lock] lastTarget set by click ->", pl.Name)
-			if lastTarget.Character then
-				local hum = lastTarget.Character:FindFirstChild("Humanoid")
-				if hum then
-					hum.Died:Connect(function()
-						if lastTarget == pl then
-							lastTarget = nil
-							lockMode = false
-							setGUI(false)
-							print("[Lock] lastTarget died after click -> cleared")
-						end
-					end)
-				end
-				lastTarget.CharacterAdded:Connect(function()
-					if lastTarget == pl then
-						lastTarget = nil
-						lockMode = false
-						setGUI(false)
-						print("[Lock] lastTarget respawned -> cleared")
-					end
-				end)
-			end
-		end
-	end
-end)
-
 UserInputService.InputBegan:Connect(function(input, gpe)
 	if gpe then return end
 	if input.KeyCode == LOCK_KEY then
@@ -105,63 +39,88 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 			lastTarget = nil
 		end
 		setGUI(lockMode)
-		print("[Lock] lockMode set ->", lockMode)
 	elseif input.KeyCode == BLOCK_KEY then
 		blockLock = true
 	end
 end)
+
 UserInputService.InputEnded:Connect(function(input)
 	if input.KeyCode == BLOCK_KEY then
 		blockLock = false
 	end
 end)
 
-local function refreshCharacter(newChar)
-	char = newChar
-	humanoid = char:WaitForChild("Humanoid")
-	root = char:WaitForChild("HumanoidRootPart")
+local function attachWatcher(plr)
+	if not plr or plr == player then return end
+	local function charAdded(c)
+		local hum = c:WaitForChild("Humanoid",5)
+		if not hum then return end
+		hum.HealthChanged:Connect(function(h)
+			if h > 0 and h < hum.MaxHealth then
+				lastTarget = plr
+			elseif h <= 0 and lastTarget == plr then
+				lastTarget = nil
+				lockMode = false
+				setGUI(false)
+			end
+		end)
+	end
+	plr.CharacterAdded:Connect(charAdded)
+	if plr.Character then
+		charAdded(plr.Character)
+	end
 end
-player.CharacterAdded:Connect(refreshCharacter)
 
-local lastDashState = false
-local lastDashEndState = false
+for _,p in pairs(Players:GetPlayers()) do
+	attachWatcher(p)
+end
+Players.PlayerAdded:Connect(attachWatcher)
+
+local mouse = player:GetMouse()
+mouse.Button1Down:Connect(function()
+	if mouse.Target and mouse.Target.Parent then
+		local mdl = mouse.Target.Parent
+		local pl = Players:FindFirstChild(mdl.Name)
+		if pl then
+			lastTarget = pl
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+	char = newChar
+	humanoid = newChar:WaitForChild("Humanoid")
+	root = newChar:WaitForChild("HumanoidRootPart")
+end)
 
 RunService.RenderStepped:Connect(function()
 	if not root or not humanoid then return end
 
-	local playing = humanoid:GetPlayingAnimationTracks()
-	local dashNow = false
-	local dashEndNow = false
-	for _,t in ipairs(playing) do
-		local ok, aid = pcall(function() return tostring(t.Animation.AnimationId) end)
-		if ok and aid == DASH_ANIM_ID then dashNow = true end
-		if ok and aid == DASH_END_ANIM_ID then dashEndNow = true end
+	local dashPlaying, dashEndPlaying = false, false
+	for _,t in ipairs(humanoid:GetPlayingAnimationTracks()) do
+		local id = tostring(t.Animation.AnimationId)
+		if id == DASH_ANIM_ID then dashPlaying = true end
+		if id == DASH_END_ANIM_ID then dashEndPlaying = true end
 	end
 
-	local anyLockActive = lockMode or blockLock or dashNow
-	setGUI(anyLockActive)
+	if (lockMode or blockLock) and lastTarget and lastTarget.Character and lastTarget.Character:FindFirstChild("HumanoidRootPart") then
+		local tr = lastTarget.Character.HumanoidRootPart
+		local targetPos = tr.Position
+		local myPos = root.Position
 
-	if dashNow and not lastDashState then
-		print("[Lock] dash animation detected")
-	end
-
-	if dashNow then
-		if lastTarget and lastTarget.Character and lastTarget.Character:FindFirstChild("HumanoidRootPart") then
-			local tr = lastTarget.Character.HumanoidRootPart
-			local targetC = CFrame.new(root.Position, tr.Position)
-			root.CFrame = root.CFrame:Lerp(targetC, 0.4)
+		-- jika target lebih tinggi darimu (knock-up/uppercut) → dash lurus ke atas
+		if dashPlaying or blockLock then
+			if targetPos.Y > myPos.Y + 2 then
+				local targetC = CFrame.new(myPos, Vector3.new(targetPos.X, targetPos.Y, targetPos.Z))
+				root.CFrame = root.CFrame:Lerp(targetC, 0.7)
+			else
+				local targetC = CFrame.new(myPos, targetPos)
+				root.CFrame = root.CFrame:Lerp(targetC, 0.6)
+			end
 		end
 	end
 
-	if blockLock then
-		if lastTarget and lastTarget.Character and lastTarget.Character:FindFirstChild("HumanoidRootPart") then
-			local tr = lastTarget.Character.HumanoidRootPart
-			local targetC = CFrame.new(root.Position, tr.Position)
-			root.CFrame = root.CFrame:Lerp(targetC, 0.25)
-		end
-	end
-
-	if dashEndNow and not lastDashEndState then
+	if dashEndPlaying then
 		local hb = Instance.new("Part")
 		hb.Size = Vector3.new(18,18,18)
 		hb.Anchored = true
@@ -170,9 +129,5 @@ RunService.RenderStepped:Connect(function()
 		hb.CFrame = root.CFrame
 		hb.Parent = workspace
 		game.Debris:AddItem(hb, 0.25)
-		print("[Lock] dash end hitbox spawned")
 	end
-
-	lastDashState = dashNow
-	lastDashEndState = dashEndNow
 end)
