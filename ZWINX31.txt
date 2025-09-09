@@ -4,11 +4,13 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local LOCK_KEY = Enum.KeyCode.R
+local BLOCK_KEY = Enum.KeyCode.F
 
 local DASH_ANIM_ID = "rbxassetid://10479335397"
 local M1_ANIM_ID = "rbxassetid://656118852"
 
 local lockMode = false
+local blockLock = false
 local lastTarget = nil
 local justAttacked = false
 
@@ -38,6 +40,14 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 			lastTarget = nil
 		end
 		setGUI(lockMode)
+	elseif input.KeyCode == BLOCK_KEY then
+		blockLock = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == BLOCK_KEY then
+		blockLock = false
 	end
 end)
 
@@ -86,7 +96,7 @@ humanoid.AnimationPlayed:Connect(function(track)
 end)
 
 RunService.Stepped:Connect(function()
-	if not lockMode or not lastTarget then return end
+	if not (lockMode or blockLock) or not lastTarget then return end
 	if not lastTarget.Character or not lastTarget.Character:FindFirstChild("HumanoidRootPart") then
 		lastTarget = nil
 		return
@@ -108,8 +118,12 @@ RunService.Stepped:Connect(function()
 		local id = tostring(t.Animation.AnimationId)
 		if id == DASH_ANIM_ID then
 			local dir = (targetPos - myPos).Unit
-			local dashStrength = 0.3
-			root.Velocity = dir * (humanoid.WalkSpeed / dashStrength)
+			root.Velocity = dir * humanoid.WalkSpeed * 2
 		end
+	end
+
+	if blockLock then
+		local lookVector = (Vector3.new(targetPos.X, myPos.Y, targetPos.Z) - myPos).Unit
+		root.CFrame = CFrame.new(myPos, myPos + lookVector)
 	end
 end)
