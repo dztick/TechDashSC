@@ -4,7 +4,6 @@ local uis = game:GetService("UserInputService")
 local LOCK_KEY = Enum.KeyCode.R
 local BLOCK_KEY = Enum.KeyCode.F
 
-local UPPERCUT_ANIM_ID = "rbxassetid://10503381238"
 local DASH_ANIM_ID = "rbxassetid://10479335397"
 local DASH_END_ANIM_ID = "rbxassetid://1451627350"
 
@@ -32,6 +31,9 @@ uis.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == LOCK_KEY then
         lockMode = not lockMode
+        if not lockMode then
+            lastTarget = nil
+        end
         setGUI(lockMode)
     end
 end)
@@ -40,13 +42,14 @@ local mouse = player:GetMouse()
 mouse.Button1Down:Connect(function()
     if mouse.Target and mouse.Target.Parent then
         local model = mouse.Target.Parent
-        if game.Players:FindFirstChild(model.Name) then
-            lastTarget = game.Players[model.Name]
+        local plr = game.Players:FindFirstChild(model.Name)
+        if plr then
+            lastTarget = plr
             if lastTarget.Character then
                 local hum = lastTarget.Character:FindFirstChild("Humanoid")
                 if hum then
                     hum.Died:Connect(function()
-                        if lastTarget == game.Players:FindFirstChild(model.Name) then
+                        if lastTarget == plr then
                             lastTarget = nil
                             setGUI(false)
                             lockMode = false
@@ -54,7 +57,7 @@ mouse.Button1Down:Connect(function()
                     end)
                 end
                 lastTarget.CharacterAdded:Connect(function()
-                    if lastTarget == game.Players:FindFirstChild(model.Name) then
+                    if lastTarget == plr then
                         lastTarget = nil
                         setGUI(false)
                         lockMode = false
