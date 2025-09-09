@@ -6,6 +6,9 @@ local player = Players.LocalPlayer
 local LOCK_KEY = Enum.KeyCode.R
 local BLOCK_KEY = Enum.KeyCode.F
 
+-- ubah ini kalau mau lock via klik juga
+local USE_CLICK_LOCK = true 
+
 local DASH_ANIM_ID = "rbxassetid://10479335397"
 local DASH_END_ANIM_ID = "rbxassetid://1451627350"
 
@@ -50,18 +53,21 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
+-- lock by damage (HP turun)
 local function attachWatcher(plr)
 	if not plr or plr == player then return end
 	local function charAdded(c)
 		local hum = c:WaitForChild("Humanoid",5)
 		if not hum then return end
 		hum.HealthChanged:Connect(function(h)
-			if h > 0 and h < hum.MaxHealth then
-				lastTarget = plr
-			elseif h <= 0 and lastTarget == plr then
-				lastTarget = nil
-				lockMode = false
-				setGUI(false)
+			if lockMode then
+				if h > 0 and h < hum.MaxHealth then
+					lastTarget = plr
+				elseif h <= 0 and lastTarget == plr then
+					lastTarget = nil
+					lockMode = false
+					setGUI(false)
+				end
 			end
 		end)
 	end
@@ -76,16 +82,19 @@ for _,p in pairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(attachWatcher)
 
-local mouse = player:GetMouse()
-mouse.Button1Down:Connect(function()
-	if mouse.Target and mouse.Target.Parent then
-		local mdl = mouse.Target.Parent
-		local pl = Players:FindFirstChild(mdl.Name)
-		if pl then
-			lastTarget = pl
+-- lock by click (opsional)
+if USE_CLICK_LOCK then
+	local mouse = player:GetMouse()
+	mouse.Button1Down:Connect(function()
+		if mouse.Target and mouse.Target.Parent then
+			local mdl = mouse.Target.Parent
+			local pl = Players:FindFirstChild(mdl.Name)
+			if pl then
+				lastTarget = pl
+			end
 		end
-	end
-end)
+	end)
+end
 
 player.CharacterAdded:Connect(function(newChar)
 	char = newChar
@@ -93,6 +102,7 @@ player.CharacterAdded:Connect(function(newChar)
 	root = newChar:WaitForChild("HumanoidRootPart")
 end)
 
+-- force lock orientation
 RunService.Stepped:Connect(function()
 	if not root or not humanoid then return end
 
@@ -109,11 +119,7 @@ RunService.Stepped:Connect(function()
 		local myPos = root.Position
 
 		if dashPlaying or blockLock then
-			if targetPos.Y > myPos.Y + 2 then
-				root.CFrame = CFrame.new(myPos, Vector3.new(targetPos.X, targetPos.Y, targetPos.Z))
-			else
-				root.CFrame = CFrame.new(myPos, targetPos)
-			end
+			root.CFrame = CFrame.new(myPos, targetPos)
 		end
 	end
 
