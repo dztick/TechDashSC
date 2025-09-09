@@ -4,14 +4,11 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local LOCK_KEY = Enum.KeyCode.R
-local BLOCK_KEY = Enum.KeyCode.F
 
 local DASH_ANIM_ID = "rbxassetid://10479335397"
-local M1_ANIM_ID = "rbxassetid://656118852" -- ganti sesuai animasi M1 kalau beda
-local DASH_END_ANIM_ID = "rbxassetid://1451627350"
+local M1_ANIM_ID = "rbxassetid://656118852"
 
 local lockMode = false
-local blockLock = false
 local lastTarget = nil
 local justAttacked = false
 
@@ -41,14 +38,6 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 			lastTarget = nil
 		end
 		setGUI(lockMode)
-	elseif input.KeyCode == BLOCK_KEY then
-		blockLock = true
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == BLOCK_KEY then
-		blockLock = false
 	end
 end)
 
@@ -86,48 +75,41 @@ player.CharacterAdded:Connect(function(newChar)
 	root = newChar:WaitForChild("HumanoidRootPart")
 end)
 
--- flag justAttacked aktif pas animasi keluar
 humanoid.AnimationPlayed:Connect(function(track)
 	if track.Animation then
 		local id = tostring(track.Animation.AnimationId)
 		if id == DASH_ANIM_ID or id == M1_ANIM_ID then
 			justAttacked = true
-			task.delay(0.5, function() justAttacked = false end)
+			task.delay(0.4, function() justAttacked = false end)
 		end
 	end
 end)
 
--- orientasi halus saat dash/block
 RunService.Stepped:Connect(function()
-	if not root or not humanoid then return end
+	if not lockMode or not lastTarget then return end
+	if not lastTarget.Character or not lastTarget.Character:FindFirstChild("HumanoidRootPart") then
+		lastTarget = nil
+		return
+	end
 
-	local dashPlaying, dashEndPlaying = false, false
+	local hum = lastTarget.Character:FindFirstChild("Humanoid")
+	if hum and hum.Health <= 0 then
+		lastTarget = nil
+		lockMode = false
+		setGUI(false)
+		return
+	end
+
+	local tr = lastTarget.Character.HumanoidRootPart
+	local targetPos = tr.Position
+	local myPos = root.Position
+
 	for _,t in ipairs(humanoid:GetPlayingAnimationTracks()) do
 		local id = tostring(t.Animation.AnimationId)
-		if id == DASH_ANIM_ID then dashPlaying = true end
-		if id == DASH_END_ANIM_ID then dashEndPlaying = true end
-	end
-
-	if (lockMode or blockLock) and lastTarget and lastTarget.Character and lastTarget.Character:FindFirstChild("HumanoidRootPart") then
-		local tr = lastTarget.Character.HumanoidRootPart
-		local targetPos = tr.Position
-		local myPos = root.Position
-
-		if dashPlaying or blockLock then
-			-- hanya rotasi Y agar dash halus, tidak ngagetin
-			local lookVector = (Vector3.new(targetPos.X, myPos.Y, targetPos.Z) - myPos).Unit
-			root.CFrame = CFrame.new(myPos, myPos + lookVector)
+		if id == DASH_ANIM_ID then
+			local dir = (targetPos - myPos).Unit
+			local dashStrength = 0.3
+			root.Velocity = dir * (humanoid.WalkSpeed / dashStrength)
 		end
-	end
-
-	if dashEndPlaying then
-		local hb = Instance.new("Part")
-		hb.Size = Vector3.new(18,18,18)
-		hb.Anchored = true
-		hb.CanCollide = false
-		hb.Transparency = 1
-		hb.CFrame = root.CFrame
-		hb.Parent = workspace
-		game.Debris:AddItem(hb, 0.25)
 	end
 end)
