@@ -10,6 +10,7 @@ local LOCK_OFFSET = Vector3.new(0, -1.5, 0)
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
+local DASH_LOCK_ACTIVE = false
 local currentRoot = nil
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
@@ -20,7 +21,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED and DASH_LOCK_ACTIVE) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -45,7 +46,12 @@ local function fireDash(target)
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
         local dir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
+        DASH_LOCK_ACTIVE = true
+        updateGUI()
         dashRemote:FireServer(dir)
+        wait(0.3) -- durasi lock saat dash
+        DASH_LOCK_ACTIVE = false
+        updateGUI()
     end
 end
 
@@ -59,7 +65,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
-    elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.F then
+    elseif input.KeyCode == Enum.KeyCode.Q then
         if LOCK_ENABLED and lastHitTarget then
             fireDash(lastHitTarget)
         end
@@ -68,7 +74,7 @@ end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if DASH_LOCK_ACTIVE and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
         local lookAtPos = targetRoot.Position + LOCK_OFFSET
         currentRoot.CFrame = CFrame.new(currentRoot.Position, lookAtPos) * CFrame.Angles(
