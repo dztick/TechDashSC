@@ -6,7 +6,7 @@ local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 2
-local LOCK_OFFSET = Vector3.new(0,2,0)
+local LOCK_OFFSET = Vector3.new(0,5,0)
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
@@ -30,21 +30,11 @@ end
 
 local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-    local part = target:FindFirstChild("HumanoidRootPart")
-    part.Size = part.Size * HITBOX_MULT
+    target.HumanoidRootPart.Size = target.HumanoidRootPart.Size * HITBOX_MULT
 end
 
-local function dashTowards(target)
-    if not target or not currentRoot then return end
-    local startPos = currentRoot.Position
-    local targetPos = Vector3.new(target.Position.X, target.Position.Y - 2, target.Position.Z)
-    local alpha = 0
-    local dashDuration = 0.2
-    while alpha < 1 do
-        alpha = alpha + RunService.RenderStepped:Wait()/dashDuration
-        local newPos = startPos:Lerp(targetPos, math.clamp(alpha,0,1))
-        currentRoot.CFrame = CFrame.new(newPos, Vector3.new(target.Position.X, newPos.Y, target.Position.Z))
-    end
+local function getDashDirection(targetPos)
+    return (targetPos - currentRoot.Position).Unit
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -62,17 +52,35 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+RunService.RenderStepped:Connect(function()
+    if not currentRoot or not isDashing or not LOCK_ENABLED or not lastHitTarget then return end
+    local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+    local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+end)
+
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
-            if LOCK_ENABLED and lastHitTarget and currentRoot then
+            if lastHitTarget and currentRoot then
+                isDashing = true
+                applyBuff(lastHitTarget)
+                LOCK_ENABLED = true
+                updateGUI()
                 local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-                if targetRoot and targetRoot.Position.Y > currentRoot.Position.Y + 1 then
-                    isDashing = true
-                    applyBuff(lastHitTarget)
-                    dashTowards(targetRoot)
-                    isDashing = false
+                if targetRoot then
+                    for i=1,10 do
+                        if not targetRoot.Parent then break end
+                        local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+                        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+                        wait(0.03)
+                    end
                 end
+                wait(0.2)
+                isDashing = false
+                LOCK_ENABLED = false
+                updateGUI()
             end
         end)
     end
@@ -86,4 +94,5 @@ if LocalPlayer.Character then
     onCharacterAdded(LocalPlayer.Character)
 end
 LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
 updateGUI()
