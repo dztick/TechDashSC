@@ -42,9 +42,9 @@ local function fireDash(target)
     local targetRoot = target:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
     applyDashBuff(target)
-    local dir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
+        local dir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
         dashRemote:FireServer(dir)
     end
 end
@@ -72,8 +72,8 @@ RunService.RenderStepped:Connect(function()
         local targetRoot = lastHitTarget.HumanoidRootPart
         local lookAtPos = targetRoot.Position + LOCK_OFFSET
         currentRoot.CFrame = CFrame.new(currentRoot.Position, lookAtPos) * CFrame.Angles(
-            math.sin(tick()*5)*0.05,
-            math.cos(tick()*5)*0.05,
+            math.sin(tick()*3)*0.03,
+            math.cos(tick()*3)*0.03,
             0
         )
     end
