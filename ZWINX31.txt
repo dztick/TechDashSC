@@ -12,7 +12,8 @@ local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
 local dashActive = false
-local blockLockActive = false
+local uppercutActive = false
+local blockIndicator = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -22,7 +23,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = (LOCK_ENABLED or blockLockActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED or blockIndicator or uppercutActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -31,7 +32,7 @@ local function updateLastHit(target)
     end
 end
 
-local function applyBuff(target)
+local function applyDashBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
     local part = target:FindFirstChild("HumanoidRootPart")
     if part then
@@ -56,23 +57,40 @@ UIS.InputBegan:Connect(function(input, gpe)
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     elseif input.KeyCode == Enum.KeyCode.F then
-        blockLockActive = true
+        blockIndicator = true
         updateGUI()
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        if lastHitTarget then
+            uppercutActive = true
+            dashActive = true
+            updateGUI()
+            task.delay(0.5, function()
+                uppercutActive = false
+            end)
+            task.delay(0.3, function()
+                dashActive = false
+            end)
+        end
     end
 end)
 
 UIS.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.F then
-        blockLockActive = false
+        blockIndicator = false
         updateGUI()
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if (dashActive or blockLockActive) and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if dashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local targetPos = targetRoot.Position + LOCK_OFFSET
+        local targetPos
+        if uppercutActive then
+            targetPos = targetRoot.Position + Vector3.new(0, 10, 0)
+        else
+            targetPos = targetRoot.Position + LOCK_OFFSET
+        end
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
@@ -86,7 +104,7 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
         obj.OnClientEvent:Connect(function()
             if lastHitTarget and currentRoot then
                 dashActive = true
-                applyBuff(lastHitTarget)
+                applyDashBuff(lastHitTarget)
                 task.delay(0.25, function()
                     dashActive = false
                 end)
