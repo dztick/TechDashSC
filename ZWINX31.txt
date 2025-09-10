@@ -8,7 +8,6 @@ local DASH_REMOTE_NAME = "Forward Dash Attack"
 local DASH_HITBOX_MULT = 3
 local DASH_SPEED = 0.4
 local LOCK_OFFSET = Vector3.new(0,-2,0)
-local FLOAT_DURATION = 0.2
 
 local lastHitTarget = nil
 local MODE_ON = false
@@ -59,7 +58,6 @@ local function performDash(target)
                 local alpha = math.clamp(elapsed/duration,0,1)
                 local newPos = startPos:Lerp(endPos, alpha)
                 currentRoot.CFrame = CFrame.new(newPos)
-                -- Float effect untuk musuh agar tetap di tempat sebentar saat dash
                 if targetRoot.Position.Y > currentRoot.Position.Y then
                     targetRoot.CFrame = CFrame.new(Vector3.new(targetRoot.Position.X, targetRoot.Position.Y, targetRoot.Position.Z))
                 end
