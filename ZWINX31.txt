@@ -44,14 +44,12 @@ local function performDash()
 
     local targetPos = targetRoot.Position
     local myPos = currentRoot.Position
-
     local isAbove = targetPos.Y > myPos.Y + 2
 
     if KIBA_MODE and isAbove then
         -- Kiba-style vertical dash
-        local upwardPos = targetPos + Vector3.new(0, 10, 0)
-        currentRoot.CFrame = CFrame.new(myPos, upwardPos)
-        fireReplication("Forward Dash Attack", upwardPos)
+        currentRoot.CFrame = CFrame.new(myPos, targetPos)
+        fireReplication("Forward Dash Attack", targetPos)
     else
         -- Dash biasa
         currentRoot.CFrame = CFrame.new(myPos, targetPos)
