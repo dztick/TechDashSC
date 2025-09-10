@@ -3,41 +3,50 @@ local LocalPlayer = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Remote names
-local UPPERCUT_REMOTE_NAME = "Uppercut Attack"
-local DASH_REMOTE_NAME = "Forward Dash Attack"
+local Replication = ReplicatedStorage:WaitForChild("Replication")
 
 -- State
 local currentRoot = nil
 local lastHitTarget = nil
+local COMBO_MODE = false
 
--- Fire remote with position
-local function fireRemote(remoteName, position)
-    local remote = ReplicatedStorage:FindFirstChild(remoteName)
-    if remote then
-        remote:FireServer({["Target"] = lastHitTarget, ["Position"] = position})
+-- GUI Setup
+local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+gui.Name = "ComboModeGUI"
+gui.ResetOnSpawn = false
+
+local statusBox = Instance.new("Frame", gui)
+statusBox.Size = UDim2.new(0, 20, 0, 20)
+statusBox.Position = UDim2.new(1, -30, 1, -30)
+statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+
+local function updateGUI()
+    statusBox.BackgroundColor3 = COMBO_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end
+
+-- Fire Replication remote
+local function fireReplication(typeName, position)
+    if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        Replication:FireServer({
+            Type = typeName,
+            Target = lastHitTarget,
+            Position = position
+        })
     end
 end
 
--- Dash ke atas
-local function dashUpward()
-    if currentRoot then
-        local upwardPos = currentRoot.Position + Vector3.new(0, 10, 0)
+-- Combo chaining
+local function startCombo()
+    if not COMBO_MODE or not lastHitTarget or not currentRoot then return end
+
+    local targetPos = lastHitTarget.HumanoidRootPart.Position
+    fireReplication("Uppercut", targetPos)
+
+    task.delay(0.3, function()
+        local upwardPos = targetPos + Vector3.new(0, 10, 0)
         currentRoot.CFrame = CFrame.new(currentRoot.Position, upwardPos)
-        fireRemote(DASH_REMOTE_NAME, upwardPos)
-    end
-end
-
--- Uppercut + dash chaining
-local function uppercutDash()
-    if lastHitTarget and currentRoot and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-        local targetPos = lastHitTarget.HumanoidRootPart.Position
-        fireRemote(UPPERCUT_REMOTE_NAME, targetPos)
-
-        task.delay(0.3, function()
-            dashUpward()
-        end)
-    end
+        fireReplication("Forward Dash Attack", upwardPos)
+    end)
 end
 
 -- Input handler
@@ -49,8 +58,13 @@ UIS.InputBegan:Connect(function(input, gpe)
         if mouse.Target and mouse.Target.Parent and mouse.Target.Parent:FindFirstChild("HumanoidRootPart") then
             lastHitTarget = mouse.Target.Parent
         end
+
     elseif input.KeyCode == Enum.KeyCode.R then
-        uppercutDash()
+        COMBO_MODE = not COMBO_MODE
+        updateGUI()
+        if COMBO_MODE then
+            startCombo()
+        end
     end
 end)
 
