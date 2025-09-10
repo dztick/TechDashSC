@@ -1,129 +1,99 @@
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 
-local player = Players.LocalPlayer
-local LOCK_KEY = Enum.KeyCode.R
-local BLOCK_KEY = Enum.KeyCode.F
+local DASH_REMOTE_NAME = "Forward Dash Attack"
+local HITBOX_MULT = 3
+local LOCK_OFFSET = Vector3.new(0,5,0)
 
-local DASH_ANIM_ID = "rbxassetid://10479335397"
-local M1_ANIM_ID = "rbxassetid://656118852"
+local lastHitTarget = nil
+local LOCK_ENABLED = false
+local currentRoot = nil
+local dashActive = false
 
-local lockMode = false
-local blockLock = false
-local lastTarget = nil
-local justAttacked = false
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.ResetOnSpawn = false
+local StatusBox = Instance.new("Frame", ScreenGui)
+StatusBox.Size = UDim2.new(0,20,0,20)
+StatusBox.Position = UDim2.new(1,-30,1,-30)
+StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
-local char = player.Character or player.CharacterAdded:Wait()
-local humanoid = char:WaitForChild("Humanoid")
-local root = char:WaitForChild("HumanoidRootPart")
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "LockIndicator"
-gui.ResetOnSpawn = false
-gui.Parent = game.CoreGui
-
-local box = Instance.new("Frame", gui)
-box.Size = UDim2.new(0,10,0,10)
-box.Position = UDim2.new(1,-20,1,-20)
-box.BackgroundColor3 = Color3.fromRGB(255,0,0)
-
-local function setGUI(on)
-	box.BackgroundColor3 = on and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+local function updateGUI()
+    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
-UserInputService.InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	if input.KeyCode == LOCK_KEY then
-		lockMode = not lockMode
-		if not lockMode then
-			lastTarget = nil
-		end
-		setGUI(lockMode)
-	elseif input.KeyCode == BLOCK_KEY then
-		blockLock = true
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == BLOCK_KEY then
-		blockLock = false
-	end
-end)
-
-local function attachWatcher(plr)
-	if not plr or plr == player then return end
-	local function charAdded(c)
-		local hum = c:WaitForChild("Humanoid",5)
-		if not hum then return end
-		hum.HealthChanged:Connect(function(h)
-			if lockMode and justAttacked then
-				if h > 0 and h < hum.MaxHealth then
-					lastTarget = plr
-				elseif h <= 0 and lastTarget == plr then
-					lastTarget = nil
-					lockMode = false
-					setGUI(false)
-				end
-			end
-		end)
-	end
-	plr.CharacterAdded:Connect(charAdded)
-	if plr.Character then
-		charAdded(plr.Character)
-	end
+local function updateLastHit(target)
+    lastHitTarget = target
 end
 
-for _,p in pairs(Players:GetPlayers()) do
-	attachWatcher(p)
+local function applyBuff(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+    local part = target:FindFirstChild("HumanoidRootPart")
+    if part then
+        part.Size = part.Size * HITBOX_MULT
+    end
 end
-Players.PlayerAdded:Connect(attachWatcher)
 
-player.CharacterAdded:Connect(function(newChar)
-	char = newChar
-	humanoid = newChar:WaitForChild("Humanoid")
-	root = newChar:WaitForChild("HumanoidRootPart")
+local function getDashDirection(targetPos)
+    return (targetPos - currentRoot.Position).Unit
+end
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = LocalPlayer:GetMouse()
+        if mouse.Target and mouse.Target.Parent then
+            if Players:FindFirstChild(mouse.Target.Parent.Name) then
+                updateLastHit(mouse.Target.Parent)
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.R then
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
+    end
 end)
 
-humanoid.AnimationPlayed:Connect(function(track)
-	if track.Animation then
-		local id = tostring(track.Animation.AnimationId)
-		if id == DASH_ANIM_ID or id == M1_ANIM_ID then
-			justAttacked = true
-			task.delay(0.4, function() justAttacked = false end)
-		end
-	end
+RunService.RenderStepped:Connect(function()
+    if not currentRoot then return end
+    if dashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        local targetPos = targetRoot.Position + LOCK_OFFSET
+        local dir = (targetPos - currentRoot.Position).Unit
+        local moveSpeed = 50
+        currentRoot.Velocity = dir * moveSpeed
+
+        if LOCK_ENABLED then
+            local currentCFrame = currentRoot.CFrame
+            local lookAt = CFrame.new(currentRoot.Position, targetPos)
+            local smoothCFrame = currentCFrame:Lerp(lookAt, 0.2) -- halus & natural
+            currentRoot.CFrame = smoothCFrame
+        end
+    end
 end)
 
-RunService.Stepped:Connect(function()
-	if not (lockMode or blockLock) or not lastTarget then return end
-	if not lastTarget.Character or not lastTarget.Character:FindFirstChild("HumanoidRootPart") then
-		lastTarget = nil
-		return
-	end
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if lastHitTarget and currentRoot then
+                dashActive = true
+                applyBuff(lastHitTarget)
+                task.delay(0.25, function()
+                    dashActive = false
+                end)
+            end
+        end)
+    end
+end
 
-	local hum = lastTarget.Character:FindFirstChild("Humanoid")
-	if hum and hum.Health <= 0 then
-		lastTarget = nil
-		lockMode = false
-		setGUI(false)
-		return
-	end
+local function onCharacterAdded(char)
+    currentRoot = char:WaitForChild("HumanoidRootPart")
+end
 
-	local tr = lastTarget.Character.HumanoidRootPart
-	local targetPos = tr.Position
-	local myPos = root.Position
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 
-	for _,t in ipairs(humanoid:GetPlayingAnimationTracks()) do
-		local id = tostring(t.Animation.AnimationId)
-		if id == DASH_ANIM_ID then
-			local dir = (targetPos - myPos).Unit
-			root.Velocity = dir * humanoid.WalkSpeed * 2
-		end
-	end
-
-	if blockLock then
-		local lookVector = (Vector3.new(targetPos.X, myPos.Y, targetPos.Z) - myPos).Unit
-		root.CFrame = CFrame.new(myPos, myPos + lookVector)
-	end
-end)
+updateGUI()
