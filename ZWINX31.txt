@@ -12,6 +12,7 @@ local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
 local frontDashActive = false
+local blockActive = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -21,7 +22,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = (LOCK_ENABLED or frontDashActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED or frontDashActive or blockActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -54,11 +55,18 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
-    elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.F then
+    elseif input.KeyCode == Enum.KeyCode.Q then
         frontDashActive = true
         updateGUI()
         task.delay(0.3, function()
             frontDashActive = false
+            updateGUI()
+        end)
+    elseif input.KeyCode == Enum.KeyCode.F then
+        blockActive = true
+        updateGUI()
+        task.delay(0.5, function()
+            blockActive = false
             updateGUI()
         end)
     end
@@ -66,14 +74,15 @@ end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if frontDashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if (frontDashActive) and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local targetPos = targetRoot.Position - Vector3.new(0, 1, 0)
+        local targetPos = targetRoot.Position - Vector3.new(0,1,0)
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
         local lookAt = CFrame.new(currentRoot.Position, targetPos)
         currentRoot.CFrame = currentRoot.CFrame:Lerp(lookAt, 0.2)
+        applyDashBuff(lastHitTarget)
     end
 end)
 
