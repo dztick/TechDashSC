@@ -4,91 +4,100 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Nama remote
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local HITBOX_MULT = 2
-local LOCK_OFFSET = Vector3.new(0,0,0)
+local SKILL2_REMOTE_NAME = "Uppercut Attack"
+local SKILL3_REMOTE_NAME = "Smash Attack"
+
+-- Variabel kontrol
 local LOCK_ENABLED = false
 local currentRoot = nil
 local lastHitTarget = nil
-local isDashing = false
+local isChaining = false
 
-local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-ScreenGui.ResetOnSpawn = false
-local StatusBox = Instance.new("Frame", ScreenGui)
-StatusBox.Size = UDim2.new(0,20,0,20)
-StatusBox.Position = UDim2.new(1,-30,1,-30)
-StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
+-- GUI Status Lock
+local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+gui.Name = "LockDashGUI"
+gui.ResetOnSpawn = false
+
+local statusBox = Instance.new("Frame", gui)
+statusBox.Size = UDim2.new(0, 20, 0, 20)
+statusBox.Position = UDim2.new(1, -30, 1, -30)
+statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    statusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end
 
+-- Update target saat klik musuh
 local function updateLastHit(target)
-    if target and target:FindFirstChild("HumanoidRootPart") then
+    if target and target:FindFirstChild("HumanoidRootPart") and Players:FindFirstChild(target.Name) then
         lastHitTarget = target
     end
 end
 
-local function applyHitbox(target)
-    if target and target:FindFirstChild("HumanoidRootPart") then
-        target.HumanoidRootPart.Size = target.HumanoidRootPart.Size * HITBOX_MULT
-    end
-end
-
-local function getDashDirection()
+-- Arah ke target
+local function getDirection()
     if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         return (lastHitTarget.HumanoidRootPart.Position - currentRoot.Position).Unit
     end
 end
 
-local function isTargetAirborne()
-    if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-        return lastHitTarget.HumanoidRootPart.Position.Y > currentRoot.Position.Y + 2
-    end
-    return false
-end
-
-local function invokeDash()
-    local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
-    if dashRemote and lastHitTarget then
-        dashRemote:FireServer(lastHitTarget.HumanoidRootPart.Position)
+-- Trigger remote dengan posisi
+local function fireRemote(remoteName)
+    local remote = ReplicatedStorage:FindFirstChild(remoteName)
+    if remote and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local pos = lastHitTarget.HumanoidRootPart.Position
+        remote:FireServer({["Target"] = lastHitTarget, ["Position"] = pos})
     end
 end
 
+-- Combo chaining
+local function startCombo()
+    if not LOCK_ENABLED or not lastHitTarget or not currentRoot then return end
+    isChaining = true
+
+    -- Dash
+    fireRemote(DASH_REMOTE_NAME)
+
+    -- Arahkan tubuh ke target
+    local dir = getDirection()
+    if dir then
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+    end
+
+    -- Skill 2
+    task.delay(0.4, function()
+        fireRemote(SKILL2_REMOTE_NAME)
+    end)
+
+    -- Skill 3
+    task.delay(0.8, function()
+        fireRemote(SKILL3_REMOTE_NAME)
+        isChaining = false
+    end)
+end
+
+-- Input handler
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
+
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LocalPlayer:GetMouse()
-        if mouse.Target and mouse.Target.Parent and Players:FindFirstChild(mouse.Target.Parent.Name) then
+        if mouse.Target and mouse.Target.Parent then
             updateLastHit(mouse.Target.Parent)
         end
+
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
+
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if LOCK_ENABLED and lastHitTarget and currentRoot and isTargetAirborne() then
-            isDashing = true
-            applyHitbox(lastHitTarget)
-            invokeDash()
-            task.delay(0.5,function()
-                isDashing = false
-            end)
-        end
+        startCombo()
     end
 end)
 
-RunService.RenderStepped:Connect(function()
-    if isDashing and LOCK_ENABLED and lastHitTarget and currentRoot then
-        local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-        if targetRoot then
-            local dir = getDashDirection()
-            if dir then
-                currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-            end
-        end
-    end
-end)
-
+-- Ambil HumanoidRootPart saat karakter muncul
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
 end
