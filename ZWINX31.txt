@@ -18,7 +18,7 @@ gui.ResetOnSpawn = false
 local statusBox = Instance.new("Frame", gui)
 statusBox.Size = UDim2.new(0, 20, 0, 20)
 statusBox.Position = UDim2.new(1, -30, 1, -30)
-statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- merah awal
+statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 
 local function updateGUI()
     statusBox.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
@@ -35,18 +35,28 @@ local function fireReplication(typeName, position)
     end
 end
 
--- Kiba chaining
-local function kibaCombo()
+-- Dash logic
+local function performDash()
     if not lastHitTarget or not currentRoot then return end
 
-    local targetPos = lastHitTarget.HumanoidRootPart.Position
-    fireReplication("Uppercut", targetPos)
+    local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
 
-    task.delay(0.3, function()
+    local targetPos = targetRoot.Position
+    local myPos = currentRoot.Position
+
+    local isAbove = targetPos.Y > myPos.Y + 2
+
+    if KIBA_MODE and isAbove then
+        -- Kiba-style vertical dash
         local upwardPos = targetPos + Vector3.new(0, 10, 0)
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, upwardPos)
+        currentRoot.CFrame = CFrame.new(myPos, upwardPos)
         fireReplication("Forward Dash Attack", upwardPos)
-    end)
+    else
+        -- Dash biasa
+        currentRoot.CFrame = CFrame.new(myPos, targetPos)
+        fireReplication("Forward Dash Attack", targetPos)
+    end
 end
 
 -- Input handler
@@ -64,15 +74,7 @@ UIS.InputBegan:Connect(function(input, gpe)
         updateGUI()
 
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if KIBA_MODE then
-            kibaCombo()
-        else
-            -- Dash biasa (tanpa chaining)
-            if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-                local pos = lastHitTarget.HumanoidRootPart.Position
-                fireReplication("Forward Dash Attack", pos)
-            end
-        end
+        performDash()
     end
 end)
 
