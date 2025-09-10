@@ -11,7 +11,6 @@ local LOCK_OFFSET = Vector3.new(0,1.5,0)
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
-local dashActive = false
 local frontDashActive = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
@@ -55,7 +54,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
-    elseif input.KeyCode == Enum.KeyCode.Q then
+    elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.F then
         frontDashActive = true
         updateGUI()
         task.delay(0.3, function()
@@ -82,11 +81,7 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
             if lastHitTarget and currentRoot then
-                dashActive = true
                 applyDashBuff(lastHitTarget)
-                task.delay(0.25, function()
-                    dashActive = false
-                end)
             end
         end)
     end
