@@ -6,14 +6,13 @@ local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 3
-local LOCK_OFFSET = Vector3.new(0,5,0)
+local LOCK_OFFSET = Vector3.new(0,1.5,0)
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
 local dashActive = false
-local uppercutActive = false
-local blockIndicator = false
+local frontDashActive = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -23,7 +22,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = (LOCK_ENABLED or blockIndicator or uppercutActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED or frontDashActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -56,41 +55,21 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
-    elseif input.KeyCode == Enum.KeyCode.F then
-        blockIndicator = true
-        updateGUI()
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if lastHitTarget then
-            uppercutActive = true
-            dashActive = true
-            updateGUI()
-            task.delay(0.5, function()
-                uppercutActive = false
-            end)
-            task.delay(0.3, function()
-                dashActive = false
-            end)
-        end
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.F then
-        blockIndicator = false
+        frontDashActive = true
         updateGUI()
+        task.delay(0.3, function()
+            frontDashActive = false
+            updateGUI()
+        end)
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if dashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if frontDashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local targetPos
-        if uppercutActive then
-            targetPos = targetRoot.Position + Vector3.new(0, 10, 0)
-        else
-            targetPos = targetRoot.Position + LOCK_OFFSET
-        end
+        local targetPos = targetRoot.Position - Vector3.new(0, 1, 0)
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
