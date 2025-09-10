@@ -46,12 +46,12 @@ local function performDash()
     local myPos = currentRoot.Position
     local isAbove = targetPos.Y > myPos.Y + 2
 
-    -- Lock arah tubuh ke target hanya saat dash
+    -- Lock arah tubuh ke target
     currentRoot.CFrame = CFrame.new(myPos, targetPos)
 
     if KIBA_MODE and isAbove then
-        -- Dash vertikal ke musuh di udara
-        fireReplication("Forward Dash Attack", targetPos + Vector3.new(0, 10, 0))
+        -- Dash langsung ke posisi musuh di atas
+        fireReplication("Forward Dash Attack", targetPos)
     else
         -- Dash biasa ke posisi musuh
         fireReplication("Forward Dash Attack", targetPos)
