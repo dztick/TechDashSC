@@ -51,16 +51,15 @@ local function performDash(target)
         dashRemote:FireServer((targetRoot.Position - currentRoot.Position).Unit)
     end
     local startPos = currentRoot.Position
-    local endPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
     local elapsed = 0
     local duration = DASH_SPEED
     RunService:BindToRenderStep("DashLock", Enum.RenderPriority.Camera.Value, function(delta)
-        if elapsed < duration then
+        if elapsed < duration and targetRoot.Parent then
             elapsed = elapsed + delta
             local alpha = math.clamp(elapsed/duration,0,1)
-            local newPos = startPos:Lerp(endPos, alpha)
-            local dir = (targetRoot.Position - newPos).Unit
-            currentRoot.CFrame = CFrame.new(newPos, newPos + dir)
+            local targetPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
+            local newPos = startPos:Lerp(targetPos, alpha)
+            currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, newPos.Y, targetRoot.Position.Z))
         else
             isDashing = false
             lockDuringDash = false
