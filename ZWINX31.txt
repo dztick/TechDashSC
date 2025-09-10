@@ -12,6 +12,7 @@ local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
 local dashActive = false
+local blockLockActive = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -21,7 +22,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED or blockLockActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -52,24 +53,31 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
+    elseif input.KeyCode == Enum.KeyCode.F then
+        blockLockActive = true
+        updateGUI()
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F then
+        blockLockActive = false
+        updateGUI()
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if dashActive and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if (dashActive or blockLockActive) and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
         local targetPos = targetRoot.Position + LOCK_OFFSET
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
-
-        if LOCK_ENABLED then
-            local currentCFrame = currentRoot.CFrame
-            local lookAt = CFrame.new(currentRoot.Position, targetPos)
-            local smoothCFrame = currentCFrame:Lerp(lookAt, 0.2) -- halus & natural
-            currentRoot.CFrame = smoothCFrame
-        end
+        local currentCFrame = currentRoot.CFrame
+        local lookAt = CFrame.new(currentRoot.Position, targetPos)
+        local smoothCFrame = currentCFrame:Lerp(lookAt, 0.2)
+        currentRoot.CFrame = smoothCFrame
     end
 end)
 
