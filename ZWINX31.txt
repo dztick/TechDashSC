@@ -37,7 +37,7 @@ end
 local function dashTowards(target)
     if not target or not currentRoot then return end
     local startPos = currentRoot.Position
-    local targetPos = Vector3.new(target.Position.X, currentRoot.Position.Y, target.Position.Z) + LOCK_OFFSET
+    local targetPos = Vector3.new(target.Position.X, target.Position.Y - 2, target.Position.Z)
     local alpha = 0
     local dashDuration = 0.2
     while alpha < 1 do
@@ -66,10 +66,13 @@ for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
     if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
         obj.OnClientEvent:Connect(function()
             if LOCK_ENABLED and lastHitTarget and currentRoot then
-                isDashing = true
-                applyBuff(lastHitTarget)
-                dashTowards(lastHitTarget.HumanoidRootPart)
-                isDashing = false
+                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+                if targetRoot and targetRoot.Position.Y > currentRoot.Position.Y + 1 then
+                    isDashing = true
+                    applyBuff(lastHitTarget)
+                    dashTowards(targetRoot)
+                    isDashing = false
+                end
             end
         end)
     end
