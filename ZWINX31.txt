@@ -6,11 +6,13 @@ local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local DASH_HITBOX_MULT = 3
-local LOCK_OFFSET = Vector3.new(0, -1.5, 0)
+local LOCK_OFFSET = Vector3.new(0,-1.5,0)
+local DASH_SPEED = 0.4
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
+local isDashing = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -35,15 +37,32 @@ local function applyDashBuff(target)
     part.Size = part.Size * DASH_HITBOX_MULT
 end
 
-local function fireDash(target)
+local function performDash(target)
     if not target or not currentRoot then return end
     local targetRoot = target:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
     applyDashBuff(target)
+    isDashing = true
+    LOCK_ENABLED = true
+    updateGUI()
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
-        local dir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
-        dashRemote:FireServer(dir)
+        local startPos = currentRoot.Position
+        local endPos = Vector3.new(targetRoot.Position.X, startPos.Y, targetRoot.Position.Z)
+        local elapsed = 0
+        local duration = DASH_SPEED
+        RunService:BindToRenderStep("DashStep", Enum.RenderPriority.Camera.Value, function(delta)
+            if elapsed < duration then
+                elapsed = elapsed + delta
+                local alpha = math.clamp(elapsed/duration,0,1)
+                local newPos = startPos:Lerp(endPos, alpha)
+                currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
+            else
+                isDashing = false
+                RunService:UnbindFromRenderStep("DashStep")
+            end
+        end)
+        dashRemote:FireServer((endPos - startPos).Unit)
     end
 end
 
@@ -58,22 +77,17 @@ UIS.InputBegan:Connect(function(input, gpe)
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if LOCK_ENABLED and lastHitTarget then
-            fireDash(lastHitTarget)
+        if lastHitTarget and not isDashing then
+            performDash(lastHitTarget)
         end
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") and not isDashing then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local lookAtPos = targetRoot.Position + LOCK_OFFSET
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, lookAtPos) * CFrame.Angles(
-            math.sin(tick()*3)*0.03,
-            math.cos(tick()*3)*0.03,
-            0
-        )
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
     end
 end)
 
