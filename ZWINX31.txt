@@ -48,28 +48,25 @@ local function performDash(target)
     updateGUI()
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
-        local startPos = currentRoot.Position
-        local endPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
-        local elapsed = 0
-        local duration = DASH_SPEED
-        RunService:BindToRenderStep("DashStep", Enum.RenderPriority.Camera.Value, function(delta)
-            if elapsed < duration then
-                elapsed = elapsed + delta
-                local alpha = math.clamp(elapsed/duration,0,1)
-                local newPos = startPos:Lerp(endPos, alpha)
-                currentRoot.CFrame = CFrame.new(newPos)
-                if targetRoot.Position.Y > currentRoot.Position.Y then
-                    targetRoot.CFrame = CFrame.new(Vector3.new(targetRoot.Position.X, targetRoot.Position.Y, targetRoot.Position.Z))
-                end
-            else
-                isDashing = false
-                lockDuringDash = false
-                updateGUI()
-                RunService:UnbindFromRenderStep("DashStep")
-            end
-        end)
-        dashRemote:FireServer((endPos - startPos).Unit)
+        dashRemote:FireServer((targetRoot.Position - currentRoot.Position).Unit)
     end
+    local startPos = currentRoot.Position
+    local endPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
+    local elapsed = 0
+    local duration = DASH_SPEED
+    RunService:BindToRenderStep("DashLock", Enum.RenderPriority.Camera.Value, function(delta)
+        if elapsed < duration then
+            elapsed = elapsed + delta
+            local alpha = math.clamp(elapsed/duration,0,1)
+            local newPos = startPos:Lerp(endPos, alpha)
+            currentRoot.CFrame = CFrame.new(newPos, targetRoot.Position + LOCK_OFFSET)
+        else
+            isDashing = false
+            lockDuringDash = false
+            updateGUI()
+            RunService:UnbindFromRenderStep("DashLock")
+        end
+    end)
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
