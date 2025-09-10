@@ -6,13 +6,15 @@ local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local DASH_HITBOX_MULT = 3
-local LOCK_OFFSET = Vector3.new(0,-1.5,0)
 local DASH_SPEED = 0.4
+local LOCK_OFFSET = Vector3.new(0,-2,0)
+local FLOAT_DURATION = 0.2
 
 local lastHitTarget = nil
 local MODE_ON = false
 local currentRoot = nil
 local isDashing = false
+local lockDuringDash = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -22,7 +24,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = MODE_ON and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = lockDuringDash and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -43,10 +45,12 @@ local function performDash(target)
     if not targetRoot then return end
     applyDashBuff(target)
     isDashing = true
+    lockDuringDash = true
+    updateGUI()
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
         local startPos = currentRoot.Position
-        local endPos = Vector3.new(targetRoot.Position.X, startPos.Y, targetRoot.Position.Z)
+        local endPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
         local elapsed = 0
         local duration = DASH_SPEED
         RunService:BindToRenderStep("DashStep", Enum.RenderPriority.Camera.Value, function(delta)
@@ -54,13 +58,15 @@ local function performDash(target)
                 elapsed = elapsed + delta
                 local alpha = math.clamp(elapsed/duration,0,1)
                 local newPos = startPos:Lerp(endPos, alpha)
-                if MODE_ON then
-                    currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
-                else
-                    currentRoot.CFrame = CFrame.new(newPos)
+                currentRoot.CFrame = CFrame.new(newPos)
+                -- Float effect untuk musuh agar tetap di tempat sebentar saat dash
+                if targetRoot.Position.Y > currentRoot.Position.Y then
+                    targetRoot.CFrame = CFrame.new(Vector3.new(targetRoot.Position.X, targetRoot.Position.Y, targetRoot.Position.Z))
                 end
             else
                 isDashing = false
+                lockDuringDash = false
+                updateGUI()
                 RunService:UnbindFromRenderStep("DashStep")
             end
         end)
@@ -77,9 +83,9 @@ UIS.InputBegan:Connect(function(input, gpe)
         end
     elseif input.KeyCode == Enum.KeyCode.R then
         MODE_ON = not MODE_ON
-        updateGUI()
+        StatusBox.BackgroundColor3 = MODE_ON and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
     elseif input.KeyCode == Enum.KeyCode.Q then
-        if lastHitTarget and not isDashing then
+        if MODE_ON and lastHitTarget and not isDashing then
             performDash(lastHitTarget)
         end
     end
@@ -93,5 +99,3 @@ if LocalPlayer.Character then
     onCharacterAdded(LocalPlayer.Character)
 end
 LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-updateGUI()
