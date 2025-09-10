@@ -6,13 +6,12 @@ local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
 local HITBOX_MULT = 3
-local LOCK_OFFSET = Vector3.new(0,1.5,0)
+local LOCK_OFFSET = Vector3.new(0, -1.5, 0) -- dibawah musuh
 
 local lastHitTarget = nil
 local LOCK_ENABLED = false
 local currentRoot = nil
 local frontDashActive = false
-local blockActive = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -22,7 +21,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = (LOCK_ENABLED or frontDashActive or blockActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = (LOCK_ENABLED or frontDashActive) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -37,10 +36,6 @@ local function applyDashBuff(target)
     if part then
         part.Size = part.Size * HITBOX_MULT
     end
-end
-
-local function getDashDirection(targetPos)
-    return (targetPos - currentRoot.Position).Unit
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -62,26 +57,18 @@ UIS.InputBegan:Connect(function(input, gpe)
             frontDashActive = false
             updateGUI()
         end)
-    elseif input.KeyCode == Enum.KeyCode.F then
-        blockActive = true
-        updateGUI()
-        task.delay(0.5, function()
-            blockActive = false
-            updateGUI()
-        end)
     end
 end)
 
 RunService.RenderStepped:Connect(function()
     if not currentRoot then return end
-    if (frontDashActive) and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if frontDashActive and LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
-        local targetPos = targetRoot.Position - Vector3.new(0,1,0)
+        local targetPos = targetRoot.Position + LOCK_OFFSET
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
-        local lookAt = CFrame.new(currentRoot.Position, targetPos)
-        currentRoot.CFrame = currentRoot.CFrame:Lerp(lookAt, 0.2)
+        currentRoot.CFrame = currentRoot.CFrame:Lerp(CFrame.new(currentRoot.Position, targetPos), 0.3)
         applyDashBuff(lastHitTarget)
     end
 end)
