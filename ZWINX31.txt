@@ -4,7 +4,7 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Replication = ReplicatedStorage:WaitForChild("Replication")
+local Replication = ReplicatedStorage:FindFirstChild("Replication")
 
 -- State
 local currentRoot = nil
@@ -26,15 +26,13 @@ local function updateGUI()
     statusBox.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end
 
--- Fire Replication remote
-local function fireReplication(typeName, position)
-    if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-        Replication:FireServer({
-            Type = typeName,
-            Target = lastHitTarget,
-            Position = position
-        })
-    end
+-- Auto update target saat skill mengenai musuh
+if Replication then
+    Replication.OnClientEvent:Connect(function(data)
+        if typeof(data) == "table" and data.Target and data.Target:FindFirstChild("HumanoidRootPart") then
+            lastHitTarget = data.Target
+        end
+    end)
 end
 
 -- Dash logic
@@ -50,25 +48,34 @@ local function performDash()
 
     isDashing = true
 
-    if KIBA_MODE and isAbove then
-        fireReplication("Forward Dash Attack", targetPos)
-    else
-        fireReplication("Forward Dash Attack", targetPos)
-    end
+    -- Snap tubuh ke arah musuh
+    currentRoot.CFrame = CFrame.new(myPos, targetPos)
+
+    -- Dash langsung ke posisi musuh
+    fireReplication("Forward Dash Attack", targetPos)
 
     task.delay(0.5, function()
         isDashing = false
     end)
 end
 
--- Real-time lock-on during dash
+-- Fire remote
+function fireReplication(typeName, position)
+    if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        Replication:FireServer({
+            Type = typeName,
+            Target = lastHitTarget,
+            Position = position
+        })
+    end
+end
+
+-- Real-time lock arah tubuh saat dash
 RunService.RenderStepped:Connect(function()
-    if isDashing and lastHitTarget and currentRoot then
-        local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-        if targetRoot then
-            local dir = (targetRoot.Position - currentRoot.Position).Unit
-            currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-        end
+    if isDashing and currentRoot and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        local dir = (targetRoot.Position - currentRoot.Position).Unit
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
     end
 end)
 
@@ -76,24 +83,22 @@ end)
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
 
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local mouse = LocalPlayer:GetMouse()
-        if mouse.Target and mouse.Target.Parent and mouse.Target.Parent:FindFirstChild("HumanoidRootPart") then
-            lastHitTarget = mouse.Target.Parent
-        end
-
-    elseif input.KeyCode == Enum.KeyCode.R then
+    if input.KeyCode == Enum.KeyCode.R then
         KIBA_MODE = not KIBA_MODE
         updateGUI()
 
     elseif input.KeyCode == Enum.KeyCode.Q then
-        performDash()
+        if KIBA_MODE then
+            performDash()
+        end
     end
 end)
 
--- Get root part
+-- Track root part
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
 end
 if LocalPlayer.Character then onCharacterAdded(LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+updateGUI()
