@@ -37,28 +37,45 @@ local function applyDashBuff(target)
     end
 end
 
+local function fireDash(target)
+    if not target or not currentRoot then return end
+    local targetRoot = target:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+    applyDashBuff(target)
+    local dir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
+    local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
+    if dashRemote then
+        dashRemote:FireServer(dir)
+    end
+end
+
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LocalPlayer:GetMouse()
-        if mouse.Target and mouse.Target.Parent then
-            if Players:FindFirstChild(mouse.Target.Parent.Name) then
-                updateLastHit(mouse.Target.Parent)
-            end
+        if mouse.Target and mouse.Target.Parent and Players:FindFirstChild(mouse.Target.Parent.Name) then
+            updateLastHit(mouse.Target.Parent)
         end
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
-    elseif (input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.F) and LOCK_ENABLED and lastHitTarget and currentRoot then
-        local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-        if targetRoot then
-            applyDashBuff(lastHitTarget)
-            local dashDir = (Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z) - currentRoot.Position).Unit
-            local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
-            if dashRemote then
-                dashRemote:FireServer(dashDir)
-            end
+    elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.F then
+        if LOCK_ENABLED and lastHitTarget then
+            fireDash(lastHitTarget)
         end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not currentRoot then return end
+    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        local lookAtPos = targetRoot.Position + LOCK_OFFSET
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, lookAtPos) * CFrame.Angles(
+            math.sin(tick()*5)*0.05,
+            math.cos(tick()*5)*0.05,
+            0
+        )
     end
 end)
 
