@@ -10,7 +10,7 @@ local LOCK_OFFSET = Vector3.new(0,-1.5,0)
 local DASH_SPEED = 0.4
 
 local lastHitTarget = nil
-local LOCK_ENABLED = false
+local MODE_ON = false
 local currentRoot = nil
 local isDashing = false
 
@@ -22,7 +22,7 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = MODE_ON and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
@@ -43,8 +43,6 @@ local function performDash(target)
     if not targetRoot then return end
     applyDashBuff(target)
     isDashing = true
-    LOCK_ENABLED = true
-    updateGUI()
     local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if dashRemote then
         local startPos = currentRoot.Position
@@ -56,7 +54,11 @@ local function performDash(target)
                 elapsed = elapsed + delta
                 local alpha = math.clamp(elapsed/duration,0,1)
                 local newPos = startPos:Lerp(endPos, alpha)
-                currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
+                if MODE_ON then
+                    currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
+                else
+                    currentRoot.CFrame = CFrame.new(newPos)
+                end
             else
                 isDashing = false
                 RunService:UnbindFromRenderStep("DashStep")
@@ -74,20 +76,12 @@ UIS.InputBegan:Connect(function(input, gpe)
             updateLastHit(mouse.Target.Parent)
         end
     elseif input.KeyCode == Enum.KeyCode.R then
-        LOCK_ENABLED = not LOCK_ENABLED
+        MODE_ON = not MODE_ON
         updateGUI()
     elseif input.KeyCode == Enum.KeyCode.Q then
         if lastHitTarget and not isDashing then
             performDash(lastHitTarget)
         end
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    if not currentRoot then return end
-    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") and not isDashing then
-        local targetRoot = lastHitTarget.HumanoidRootPart
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, Vector3.new(targetRoot.Position.X, currentRoot.Position.Y, targetRoot.Position.Z))
     end
 end)
 
