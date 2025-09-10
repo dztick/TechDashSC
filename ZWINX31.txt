@@ -1,11 +1,10 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local HITBOX_MULT = 2
+local HITBOX_MULT = 3
 local LOCK_OFFSET = Vector3.new(0,5,0)
 
 local lastHitTarget = nil
@@ -30,7 +29,10 @@ end
 
 local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-    target.HumanoidRootPart.Size = target.HumanoidRootPart.Size * HITBOX_MULT
+    local part = target:FindFirstChild("HumanoidRootPart")
+    if part then
+        part.Size = part.Size * HITBOX_MULT
+    end
 end
 
 local function getDashDirection(targetPos)
@@ -49,41 +51,30 @@ UIS.InputBegan:Connect(function(input, gpe)
     elseif input.KeyCode == Enum.KeyCode.R then
         LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        if lastHitTarget and currentRoot then
+            isDashing = true
+            local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+            if targetRoot then
+                local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+                currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+                applyBuff(lastHitTarget)
+            end
+            wait(0.5) -- durasi dash
+            isDashing = false
+        end
     end
 end)
 
 RunService.RenderStepped:Connect(function()
-    if not currentRoot or not isDashing or not LOCK_ENABLED or not lastHitTarget then return end
-    local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
-    local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
-    currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-end)
-
-for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
-        obj.OnClientEvent:Connect(function()
-            if lastHitTarget and currentRoot then
-                isDashing = true
-                LOCK_ENABLED = true
-                updateGUI()
-                applyBuff(lastHitTarget)
-                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-                if targetRoot then
-                    for i=1,10 do
-                        if not targetRoot.Parent then break end
-                        local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
-                        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
-                        wait(0.03)
-                    end
-                end
-                isDashing = false
-                LOCK_ENABLED = false
-                updateGUI()
-            end
-        end)
+    if not currentRoot then return end
+    updateGUI()
+    if LOCK_ENABLED and isDashing and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        local dir = getDashDirection(targetRoot.Position + LOCK_OFFSET)
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
     end
-end
+end)
 
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
