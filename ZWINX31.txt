@@ -8,20 +8,20 @@ local Replication = ReplicatedStorage:WaitForChild("Replication")
 -- State
 local currentRoot = nil
 local lastHitTarget = nil
-local COMBO_MODE = false
+local KIBA_MODE = false
 
 -- GUI Setup
 local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-gui.Name = "ComboModeGUI"
+gui.Name = "KibaModeGUI"
 gui.ResetOnSpawn = false
 
 local statusBox = Instance.new("Frame", gui)
 statusBox.Size = UDim2.new(0, 20, 0, 20)
 statusBox.Position = UDim2.new(1, -30, 1, -30)
-statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- merah awal
 
 local function updateGUI()
-    statusBox.BackgroundColor3 = COMBO_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    statusBox.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end
 
 -- Fire Replication remote
@@ -35,9 +35,9 @@ local function fireReplication(typeName, position)
     end
 end
 
--- Combo chaining
-local function startCombo()
-    if not COMBO_MODE or not lastHitTarget or not currentRoot then return end
+-- Kiba chaining
+local function kibaCombo()
+    if not lastHitTarget or not currentRoot then return end
 
     local targetPos = lastHitTarget.HumanoidRootPart.Position
     fireReplication("Uppercut", targetPos)
@@ -60,10 +60,18 @@ UIS.InputBegan:Connect(function(input, gpe)
         end
 
     elseif input.KeyCode == Enum.KeyCode.R then
-        COMBO_MODE = not COMBO_MODE
+        KIBA_MODE = not KIBA_MODE
         updateGUI()
-        if COMBO_MODE then
-            startCombo()
+
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        if KIBA_MODE then
+            kibaCombo()
+        else
+            -- Dash biasa (tanpa chaining)
+            if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+                local pos = lastHitTarget.HumanoidRootPart.Position
+                fireReplication("Forward Dash Attack", pos)
+            end
         end
     end
 end)
