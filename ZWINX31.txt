@@ -49,7 +49,7 @@ local function fireDash(target)
         DASH_LOCK_ACTIVE = true
         updateGUI()
         dashRemote:FireServer(dir)
-        wait(0.3) -- durasi lock saat dash
+        wait(0.3)
         DASH_LOCK_ACTIVE = false
         updateGUI()
     end
@@ -63,7 +63,7 @@ UIS.InputBegan:Connect(function(input, gpe)
             updateLastHit(mouse.Target.Parent)
         end
     elseif input.KeyCode == Enum.KeyCode.R then
-        LOCK_ENABLED = not LOCK_ENABLED
+        LOCK_ENABLED = true
         updateGUI()
     elseif input.KeyCode == Enum.KeyCode.Q then
         if LOCK_ENABLED and lastHitTarget then
