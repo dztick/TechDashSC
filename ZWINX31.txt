@@ -44,35 +44,28 @@ local function performDash()
 
     local targetPos = targetRoot.Position
     local myPos = currentRoot.Position
-    local isAbove = targetPos.Y > myPos.Y + 2
 
     isDashing = true
 
-    -- Snap tubuh ke arah musuh
-    currentRoot.CFrame = CFrame.new(myPos, targetPos)
+    -- Snap tubuh ke arah musuh sebelum dash
+    local dir = (targetPos - myPos).Unit
+    currentRoot.CFrame = CFrame.new(myPos, myPos + dir)
 
-    -- Dash langsung ke posisi musuh
-    fireReplication("Forward Dash Attack", targetPos)
+    -- Kirim dash ke posisi musuh
+    Replication:FireServer({
+        Type = "Forward Dash Attack",
+        Target = lastHitTarget,
+        Position = targetPos
+    })
 
     task.delay(0.5, function()
         isDashing = false
     end)
 end
 
--- Fire remote
-function fireReplication(typeName, position)
-    if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-        Replication:FireServer({
-            Type = typeName,
-            Target = lastHitTarget,
-            Position = position
-        })
-    end
-end
-
 -- Real-time lock arah tubuh saat dash
 RunService.RenderStepped:Connect(function()
-    if isDashing and currentRoot and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+    if isDashing and KIBA_MODE and currentRoot and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local targetRoot = lastHitTarget.HumanoidRootPart
         local dir = (targetRoot.Position - currentRoot.Position).Unit
         currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
