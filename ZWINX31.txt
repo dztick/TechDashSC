@@ -4,18 +4,16 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Nama remote
+-- Remote names
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local SKILL2_REMOTE_NAME = "Uppercut Attack"
-local SKILL3_REMOTE_NAME = "Smash Attack"
 
--- Variabel kontrol
+-- State variables
 local LOCK_ENABLED = false
 local currentRoot = nil
 local lastHitTarget = nil
 local isChaining = false
 
--- GUI Status Lock
+-- GUI Setup
 local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 gui.Name = "LockDashGUI"
 gui.ResetOnSpawn = false
@@ -43,22 +41,22 @@ local function getDirection()
     end
 end
 
--- Trigger remote dengan posisi
-local function fireRemote(remoteName)
-    local remote = ReplicatedStorage:FindFirstChild(remoteName)
+-- Fire dash remote
+local function fireDash()
+    local remote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
     if remote and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
         local pos = lastHitTarget.HumanoidRootPart.Position
         remote:FireServer({["Target"] = lastHitTarget, ["Position"] = pos})
     end
 end
 
--- Combo chaining
-local function startCombo()
+-- Start chaining
+local function startChain()
     if not LOCK_ENABLED or not lastHitTarget or not currentRoot then return end
     isChaining = true
 
     -- Dash
-    fireRemote(DASH_REMOTE_NAME)
+    fireDash()
 
     -- Arahkan tubuh ke target
     local dir = getDirection()
@@ -66,14 +64,8 @@ local function startCombo()
         currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
     end
 
-    -- Skill 2
-    task.delay(0.4, function()
-        fireRemote(SKILL2_REMOTE_NAME)
-    end)
-
-    -- Skill 3
-    task.delay(0.8, function()
-        fireRemote(SKILL3_REMOTE_NAME)
+    -- Bisa ditambah skill chaining di sini kalau mau
+    task.delay(0.5, function()
         isChaining = false
     end)
 end
@@ -93,7 +85,7 @@ UIS.InputBegan:Connect(function(input, gpe)
         updateGUI()
 
     elseif input.KeyCode == Enum.KeyCode.Q then
-        startCombo()
+        startChain()
     end
 end)
 
