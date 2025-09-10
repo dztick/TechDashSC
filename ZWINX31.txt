@@ -5,15 +5,13 @@ local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 
 local DASH_REMOTE_NAME = "Forward Dash Attack"
-local DASH_HITBOX_MULT = 3
-local DASH_SPEED = 0.4
-local LOCK_OFFSET = Vector3.new(0,-2,0)
+local HITBOX_MULT = 2
+local LOCK_OFFSET = Vector3.new(0,2,0)
 
 local lastHitTarget = nil
-local MODE_ON = false
+local LOCK_ENABLED = false
 local currentRoot = nil
 local isDashing = false
-local lockDuringDash = false
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
 ScreenGui.ResetOnSpawn = false
@@ -23,68 +21,59 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = lockDuringDash and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
 local function updateLastHit(target)
-    if target and target:FindFirstChild("Humanoid") then
-        lastHitTarget = target
-    end
+    lastHitTarget = target
 end
 
-local function applyDashBuff(target)
+local function applyBuff(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") then return end
     local part = target:FindFirstChild("HumanoidRootPart")
-    part.Size = part.Size * DASH_HITBOX_MULT
+    part.Size = part.Size * HITBOX_MULT
 end
 
-local function performDash(target)
+local function dashTowards(target)
     if not target or not currentRoot then return end
-    local targetRoot = target:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
-    applyDashBuff(target)
-    isDashing = true
-    lockDuringDash = true
-    updateGUI()
-    local dashRemote = ReplicatedStorage:FindFirstChild(DASH_REMOTE_NAME)
-    if dashRemote then
-        dashRemote:FireServer((targetRoot.Position - currentRoot.Position).Unit)
-    end
     local startPos = currentRoot.Position
-    local elapsed = 0
-    local duration = DASH_SPEED
-    RunService:BindToRenderStep("DashLock", Enum.RenderPriority.Camera.Value, function(delta)
-        if elapsed < duration and targetRoot.Parent then
-            elapsed = elapsed + delta
-            local alpha = math.clamp(elapsed/duration,0,1)
-            local targetPos = Vector3.new(targetRoot.Position.X, targetRoot.Position.Y + LOCK_OFFSET.Y, targetRoot.Position.Z)
-            local newPos = startPos:Lerp(targetPos, alpha)
-            currentRoot.CFrame = CFrame.new(newPos, Vector3.new(targetRoot.Position.X, newPos.Y, targetRoot.Position.Z))
-        else
-            isDashing = false
-            lockDuringDash = false
-            updateGUI()
-            RunService:UnbindFromRenderStep("DashLock")
-        end
-    end)
+    local targetPos = Vector3.new(target.Position.X, currentRoot.Position.Y, target.Position.Z) + LOCK_OFFSET
+    local alpha = 0
+    local dashDuration = 0.2
+    while alpha < 1 do
+        alpha = alpha + RunService.RenderStepped:Wait()/dashDuration
+        local newPos = startPos:Lerp(targetPos, math.clamp(alpha,0,1))
+        currentRoot.CFrame = CFrame.new(newPos, Vector3.new(target.Position.X, newPos.Y, target.Position.Z))
+    end
 end
 
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LocalPlayer:GetMouse()
-        if mouse.Target and mouse.Target.Parent and Players:FindFirstChild(mouse.Target.Parent.Name) then
-            updateLastHit(mouse.Target.Parent)
+        if mouse.Target and mouse.Target.Parent then
+            if Players:FindFirstChild(mouse.Target.Parent.Name) then
+                updateLastHit(mouse.Target.Parent)
+            end
         end
     elseif input.KeyCode == Enum.KeyCode.R then
-        MODE_ON = not MODE_ON
-        StatusBox.BackgroundColor3 = MODE_ON and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-    elseif input.KeyCode == Enum.KeyCode.Q then
-        if MODE_ON and lastHitTarget and not isDashing then
-            performDash(lastHitTarget)
-        end
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
     end
 end)
+
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if LOCK_ENABLED and lastHitTarget and currentRoot then
+                isDashing = true
+                applyBuff(lastHitTarget)
+                dashTowards(lastHitTarget.HumanoidRootPart)
+                isDashing = false
+            end
+        end)
+    end
+end
 
 local function onCharacterAdded(char)
     currentRoot = char:WaitForChild("HumanoidRootPart")
@@ -94,3 +83,4 @@ if LocalPlayer.Character then
     onCharacterAdded(LocalPlayer.Character)
 end
 LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+updateGUI()
