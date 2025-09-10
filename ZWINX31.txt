@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Replication = ReplicatedStorage:WaitForChild("Replication")
@@ -9,6 +10,7 @@ local Replication = ReplicatedStorage:WaitForChild("Replication")
 local currentRoot = nil
 local lastHitTarget = nil
 local KIBA_MODE = false
+local isDashing = false
 
 -- GUI Setup
 local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
@@ -46,19 +48,29 @@ local function performDash()
     local myPos = currentRoot.Position
     local isAbove = targetPos.Y > myPos.Y + 2
 
-    if KIBA_MODE and isAbove then
-        -- Kiba-style: tubuh menghadap ke atas
-        local upwardDirection = Vector3.new(0, 1, 0)
-        currentRoot.CFrame = CFrame.new(myPos, myPos + upwardDirection)
+    isDashing = true
 
-        -- Dash langsung ke posisi musuh di atas
+    if KIBA_MODE and isAbove then
         fireReplication("Forward Dash Attack", targetPos)
     else
-        -- Dash biasa ke posisi musuh
-        currentRoot.CFrame = CFrame.new(myPos, targetPos)
         fireReplication("Forward Dash Attack", targetPos)
     end
+
+    task.delay(0.5, function()
+        isDashing = false
+    end)
 end
+
+-- Real-time lock-on during dash
+RunService.RenderStepped:Connect(function()
+    if isDashing and lastHitTarget and currentRoot then
+        local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            local dir = (targetRoot.Position - currentRoot.Position).Unit
+            currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+        end
+    end
+end)
 
 -- Input handler
 UIS.InputBegan:Connect(function(input, gpe)
