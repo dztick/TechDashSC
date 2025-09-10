@@ -59,7 +59,8 @@ local function performDash(target)
             elapsed = elapsed + delta
             local alpha = math.clamp(elapsed/duration,0,1)
             local newPos = startPos:Lerp(endPos, alpha)
-            currentRoot.CFrame = CFrame.new(newPos, targetRoot.Position + LOCK_OFFSET)
+            local dir = (targetRoot.Position - newPos).Unit
+            currentRoot.CFrame = CFrame.new(newPos, newPos + dir)
         else
             isDashing = false
             lockDuringDash = false
