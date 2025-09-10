@@ -21,7 +21,11 @@ StatusBox.Position = UDim2.new(1,-30,1,-30)
 StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-    StatusBox.BackgroundColor3 = (LOCK_ENABLED and DASH_LOCK_ACTIVE) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    if LOCK_ENABLED then
+        StatusBox.BackgroundColor3 = Color3.fromRGB(0,255,0)
+    else
+        StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
+    end
 end
 
 local function updateLastHit(target)
@@ -63,7 +67,7 @@ UIS.InputBegan:Connect(function(input, gpe)
             updateLastHit(mouse.Target.Parent)
         end
     elseif input.KeyCode == Enum.KeyCode.R then
-        LOCK_ENABLED = true
+        LOCK_ENABLED = not LOCK_ENABLED
         updateGUI()
     elseif input.KeyCode == Enum.KeyCode.Q then
         if LOCK_ENABLED and lastHitTarget then
