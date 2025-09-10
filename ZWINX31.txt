@@ -26,7 +26,9 @@ local function updateGUI()
 end
 
 local function updateLastHit(target)
-    lastHitTarget = target
+    if target and target:FindFirstChild("Humanoid") then
+        lastHitTarget = target
+    end
 end
 
 local function applyBuff(target)
@@ -74,10 +76,8 @@ RunService.RenderStepped:Connect(function()
         local dir = (targetPos - currentRoot.Position).Unit
         local moveSpeed = 50
         currentRoot.Velocity = dir * moveSpeed
-        local currentCFrame = currentRoot.CFrame
         local lookAt = CFrame.new(currentRoot.Position, targetPos)
-        local smoothCFrame = currentCFrame:Lerp(lookAt, 0.2)
-        currentRoot.CFrame = smoothCFrame
+        currentRoot.CFrame = currentRoot.CFrame:Lerp(lookAt, 0.2)
     end
 end)
 
