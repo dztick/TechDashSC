@@ -1,79 +1,59 @@
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LP = Players.LocalPlayer
-local Replication = ReplicatedStorage:WaitForChild("Replication")
-
 local KIBA_MODE = false
 local lastHitTarget = nil
 local toggleKey = Enum.KeyCode.R
+local dashKey = Enum.KeyCode.Q
 
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Parent = LP:WaitForChild("PlayerGui")
+-- GUI kecil
+local gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
 gui.ResetOnSpawn = false
-
-local box = Instance.new("Frame")
+local box = Instance.new("Frame", gui)
 box.Size = UDim2.new(0,10,0,10)
 box.Position = UDim2.new(1,-20,1,-40)
 box.BackgroundColor3 = Color3.fromRGB(255,0,0)
-box.Parent = gui
 
 local function updateGUI()
 	box.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
--- Toggle ON/OFF
 UIS.InputBegan:Connect(function(input,gp)
 	if gp then return end
 	if input.KeyCode == toggleKey then
 		KIBA_MODE = not KIBA_MODE
 		updateGUI()
+	elseif input.KeyCode == dashKey and KIBA_MODE then
+		if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+			local myChar = LP.Character
+			if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+				local myHRP = myChar.HumanoidRootPart
+				local tgtHRP = lastHitTarget.HumanoidRootPart
+
+				-- lock orientasi tubuh selama 0.35 detik
+				local start = tick()
+				while tick() - start < 0.35 do
+					if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then break end
+					if not tgtHRP or not tgtHRP.Parent then break end
+					myChar:PivotTo(CFrame.new(myHRP.Position, tgtHRP.Position))
+					RunService.RenderStepped:Wait()
+				end
+			end
+		end
 	end
 end)
 
--- Detect last hit dari Replication
-Replication.OnClientEvent:Connect(function(data)
-	if typeof(data) == "table" and data.Target and data.Target:FindFirstChild("HumanoidRootPart") then
-		lastHitTarget = data.Target
-	end
-end)
-
--- Saat dash dipanggil server
-Replication.OnClientEvent:Connect(function(data)
-	if not KIBA_MODE then return end
-	if typeof(data) ~= "table" or data.Name ~= "Forward Dash Attack" then return end
-
-	if not lastHitTarget or not lastHitTarget.Parent then return end
-	local myChar = LP.Character
-	if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
-
-	local myHRP = myChar.HumanoidRootPart
-	local tgtHRP = lastHitTarget:FindFirstChild("HumanoidRootPart")
-	local tgtHum = lastHitTarget:FindFirstChildOfClass("Humanoid")
-	if not tgtHRP or not tgtHum then return end
-
-	-- cek apakah target di udara (Freefall / Jumping / FallingDown)
-	local tgtState = tgtHum:GetState()
-	local isAir = (tgtState == Enum.HumanoidStateType.Freefall 
-		or tgtState == Enum.HumanoidStateType.Jumping 
-		or tgtState == Enum.HumanoidStateType.FallingDown)
-
-	if not isAir then return end
-
-	-- Lock hanya selama durasi dash (0.35 detik)
-	local startTime = tick()
-	while tick() - startTime < 0.35 do
-		if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then break end
-		if not lastHitTarget or not lastHitTarget.Parent then break end
-		if not tgtHRP or not tgtHRP.Parent then break end
-
-		local look = CFrame.new(myHRP.Position, tgtHRP.Position)
-		pcall(function() myChar:PivotTo(look) end)
-
-		RunService.RenderStepped:Wait()
+-- update last target kalau kena hit (harus disesuaikan dengan event hit game kamu)
+-- contoh sederhana: klik kiri pada player lain
+UIS.InputBegan:Connect(function(input,gp)
+	if gp then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local m = LP:GetMouse()
+		if m.Target and m.Target.Parent and Players:FindFirstChild(m.Target.Parent.Name) then
+			lastHitTarget = m.Target.Parent
+		end
 	end
 end)
 
