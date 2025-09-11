@@ -1,97 +1,178 @@
+-- DXERR Kiba Tech v5.6 (Frontdash Only + Mini GUI 10x10 + Persist Respawn)
+
+if _G.DXERR_KIBA and _G.DXERR_KIBA.cleanup then
+    _G.DXERR_KIBA.cleanup()
+end
+_G.DXERR_KIBA = {}
+
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VIM = game:GetService("VirtualInputManager")
+local LP = Players.LocalPlayer
 
-local Replication = ReplicatedStorage:FindFirstChild("Replication")
+local KEYS = {
+    Toggle = Enum.KeyCode.R,
+    Dash   = Enum.KeyCode.Q,
+    Space  = Enum.KeyCode.Space,
+}
 
--- State
-local currentRoot = nil
-local lastHitTarget = nil
-local KIBA_MODE = false
-local isDashing = false
+local LockOnRange      = 80
+local DashSignalName   = "Forward Dash Attack"
 
--- GUI Setup
-local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-gui.Name = "KibaModeGUI"
+local POST_DASH_DELAY  = 0.14
+local M1_INTERVAL      = 0.18
+local SPACE_HOLD_TIME  = 0.14
+local PRE_VDASH_DELAY  = 0.30
+local COMBO_COOLDOWN   = 0.55
+local dashWindow       = 0.6
+
+-- GUI kecil
+local gui = Instance.new("ScreenGui")
+gui.Name = "DXERR_KibaTech"
 gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = LP:WaitForChild("PlayerGui")
 
-local statusBox = Instance.new("Frame", gui)
-statusBox.Size = UDim2.new(0, 20, 0, 20)
-statusBox.Position = UDim2.new(1, -30, 1, -30)
-statusBox.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+local box = Instance.new("Frame")
+box.Size = UDim2.new(0, 10, 0, 10)
+box.Position = UDim2.new(1, -20, 1, -20)
+box.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+box.Parent = gui
 
-local function updateGUI()
-    statusBox.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+local function setBox(on)
+    box.BackgroundColor3 = on and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end
 
--- Auto update target saat skill mengenai musuh
-if Replication then
-    Replication.OnClientEvent:Connect(function(data)
-        if typeof(data) == "table" and data.Target and data.Target:FindFirstChild("HumanoidRootPart") then
-            lastHitTarget = data.Target
-        end
-    end)
+local active = false
+local function toggle()
+    active = not active
+    setBox(active)
 end
 
--- Dash logic
-local function performDash()
-    if not lastHitTarget or not currentRoot then return end
-
-    local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
-
-    local targetPos = targetRoot.Position
-    local myPos = currentRoot.Position
-
-    isDashing = true
-
-    -- Snap tubuh ke arah musuh sebelum dash
-    local dir = (targetPos - myPos).Unit
-    currentRoot.CFrame = CFrame.new(myPos, myPos + dir)
-
-    -- Kirim dash ke posisi musuh
-    Replication:FireServer({
-        Type = "Forward Dash Attack",
-        Target = lastHitTarget,
-        Position = targetPos
-    })
-
-    task.delay(0.5, function()
-        isDashing = false
-    end)
-end
-
--- Real-time lock arah tubuh saat dash
-RunService.RenderStepped:Connect(function()
-    if isDashing and KIBA_MODE and currentRoot and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-        local targetRoot = lastHitTarget.HumanoidRootPart
-        local dir = (targetRoot.Position - currentRoot.Position).Unit
-        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+local toggleConn = UIS.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == KEYS.Toggle then
+        toggle()
     end
 end)
 
--- Input handler
-UIS.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
+-- Helpers
+local function charReady()
+    local ch = LP.Character
+    return ch and ch:FindFirstChild("HumanoidRootPart") and ch:FindFirstChildOfClass("Humanoid")
+end
 
-    if input.KeyCode == Enum.KeyCode.R then
-        KIBA_MODE = not KIBA_MODE
-        updateGUI()
+local function pressM1(hold)
+    VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    task.wait(hold or 0.06)
+    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+end
 
-    elseif input.KeyCode == Enum.KeyCode.Q then
-        if KIBA_MODE then
-            performDash()
+local function pressKey(code, hold)
+    VIM:SendKeyEvent(true, code, false, game)
+    task.wait(hold or 0.07)
+    VIM:SendKeyEvent(false, code, false, game)
+end
+
+local function getNearestTarget(maxDistance)
+    if not charReady() then return nil end
+    local myHRP = LP.Character.HumanoidRootPart
+    local nearest, best = nil, maxDistance or LockOnRange
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = plr.Character.HumanoidRootPart
+            local d = (hrp.Position - myHRP.Position).Magnitude
+            if d < best then nearest, best = plr, d end
         end
+    end
+    return nearest
+end
+
+local function faceTarget(targetHRP)
+    if not charReady() then return end
+    local ch = LP.Character
+    local root = ch.PrimaryPart or ch:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local look = CFrame.new(root.Position, Vector3.new(targetHRP.Position.X, root.Position.Y, targetHRP.Position.Z))
+    ch:PivotTo(look)
+end
+
+local comboBusy = false
+local lastDashKeyTime = 0
+
+local dashKeyConn = UIS.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == KEYS.Dash then
+        lastDashKeyTime = tick()
     end
 end)
 
--- Track root part
-local function onCharacterAdded(char)
-    currentRoot = char:WaitForChild("HumanoidRootPart")
-end
-if LocalPlayer.Character then onCharacterAdded(LocalPlayer.Character) end
-LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+local function performCombo()
+    if comboBusy or not active then return end
+    comboBusy = true
 
-updateGUI()
+    local targetPlr = getNearestTarget(LockOnRange)
+    if not targetPlr or not targetPlr.Character or not targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+        comboBusy = false
+        return
+    end
+    local targetHRP = targetPlr.Character.HumanoidRootPart
+    faceTarget(targetHRP)
+
+    task.wait(POST_DASH_DELAY)
+    for i = 1, 3 do
+        pressM1()
+        task.wait(M1_INTERVAL)
+    end
+
+    VIM:SendKeyEvent(true, KEYS.Space, false, game)
+    task.wait(SPACE_HOLD_TIME)
+    pressM1()
+    task.wait(0.10)
+    VIM:SendKeyEvent(false, KEYS.Space, false, game)
+
+    task.wait(PRE_VDASH_DELAY)
+    pressKey(KEYS.Dash)
+
+    task.wait(COMBO_COOLDOWN)
+    comboBusy = false
+end
+
+-- Remote listener khusus frontdash
+local repConn
+do
+    local replication
+    for _, inst in ipairs(game:GetDescendants()) do
+        if inst:IsA("RemoteEvent") and inst.Name == "Replication" then
+            replication = inst
+            break
+        end
+    end
+
+    if replication then
+        repConn = replication.OnClientEvent:Connect(function(arg1)
+            if not active then return end
+            if typeof(arg1) ~= "table" then return end
+            if arg1.Name ~= DashSignalName then return end
+            if tick() - lastDashKeyTime > dashWindow then return end
+            performCombo()
+        end)
+    else
+        warn("Replication RemoteEvent tidak ditemukan.")
+    end
+end
+
+-- Persist setelah respawn
+local function onCharAdded(char)
+    char:WaitForChild("HumanoidRootPart")
+end
+if LP.Character then onCharAdded(LP.Character) end
+LP.CharacterAdded:Connect(onCharAdded)
+
+_G.DXERR_KIBA.cleanup = function()
+    pcall(function() if repConn then repConn:Disconnect() end end)
+    pcall(function() if toggleConn then toggleConn:Disconnect() end end)
+    pcall(function() if dashKeyConn then dashKeyConn:Disconnect() end end)
+    pcall(function() gui:Destroy() end)
+    _G.DXERR_KIBA = nil
+end
+
+print("✅ DXERR Kiba Tech v5.6 aktif. Toggle:", KEYS.Toggle.Name)
