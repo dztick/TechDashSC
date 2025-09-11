@@ -8,7 +8,6 @@ local Replication = ReplicatedStorage:WaitForChild("Replication")
 
 local KIBA_MODE = false
 local lastHitTarget = nil
-local dashKey = Enum.KeyCode.Q
 local toggleKey = Enum.KeyCode.R
 
 -- GUI
@@ -53,7 +52,16 @@ Replication.OnClientEvent:Connect(function(data)
 
 	local myHRP = myChar.HumanoidRootPart
 	local tgtHRP = lastHitTarget:FindFirstChild("HumanoidRootPart")
-	if not tgtHRP then return end
+	local tgtHum = lastHitTarget:FindFirstChildOfClass("Humanoid")
+	if not tgtHRP or not tgtHum then return end
+
+	-- cek apakah target di udara (Freefall / Jumping / FallingDown)
+	local tgtState = tgtHum:GetState()
+	local isAir = (tgtState == Enum.HumanoidStateType.Freefall 
+		or tgtState == Enum.HumanoidStateType.Jumping 
+		or tgtState == Enum.HumanoidStateType.FallingDown)
+
+	if not isAir then return end
 
 	-- Lock hanya selama durasi dash (0.35 detik)
 	local startTime = tick()
@@ -62,7 +70,7 @@ Replication.OnClientEvent:Connect(function(data)
 		if not lastHitTarget or not lastHitTarget.Parent then break end
 		if not tgtHRP or not tgtHRP.Parent then break end
 
-		local look = CFrame.new(myHRP.Position, Vector3.new(tgtHRP.Position.X, tgtHRP.Position.Y, tgtHRP.Position.Z))
+		local look = CFrame.new(myHRP.Position, tgtHRP.Position)
 		pcall(function() myChar:PivotTo(look) end)
 
 		RunService.RenderStepped:Wait()
