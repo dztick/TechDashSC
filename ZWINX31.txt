@@ -1,24 +1,21 @@
--- DXERR Kiba Tech v5.7.1 (Fix Replication Arg Check)
+-- DXERR Kiba Tech v5.7.2 (safe: listen-only frontdash lock to last hit)
 
 if _G.DXERR_KIBA and _G.DXERR_KIBA.cleanup then
-    _G.DXERR_KIBA.cleanup()
+    pcall(_G.DXERR_KIBA.cleanup)
 end
 _G.DXERR_KIBA = {}
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local KEYS = {
-    Toggle = Enum.KeyCode.R,
-    Dash   = Enum.KeyCode.Q,
-}
-
+local KEYS = { Toggle = Enum.KeyCode.R, Dash = Enum.KeyCode.Q }
 local DashSignalName = "Forward Dash Attack"
 local dashWindow = 0.6
+local lockDuration = 0.38 -- lama kunci orientasi (detik)
 
--- GUI kecil
 local gui = Instance.new("ScreenGui")
 gui.Name = "DXERR_KibaTech"
 gui.ResetOnSpawn = false
@@ -31,27 +28,31 @@ box.Position = UDim2.new(1, -20, 1, -20)
 box.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 box.Parent = gui
 
-local function setBox(on)
-    box.BackgroundColor3 = on and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-end
+local function setBox(on) box.BackgroundColor3 = on and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0) end
 
 local active = false
-local function toggle()
-    active = not active
-    setBox(active)
-end
+local function toggle() active = not active setBox(active) end
 
--- Track last hit target
+-- track last hit target (by M1 or by Replication payloads)
 local lastHitTarget = nil
 
-UIS.InputBegan:Connect(function(input, gp)
-    if gp then return end
+-- record last dash keypress time
+_G.DXERR_KIBA.lastDashTime = nil
+UIS.InputBegan:Connect(function(input,gpe)
+    if gpe then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LP:GetMouse()
         if mouse.Target and mouse.Target.Parent then
             local plr = Players:GetPlayerFromCharacter(mouse.Target.Parent)
             if plr and plr.Character then
                 lastHitTarget = plr.Character
+            else
+                -- if the clicked target is a part of a character model (not player), try parent chain
+                local cand = mouse.Target.Parent
+                if cand and cand:FindFirstChild("Humanoid") then
+                    local p = Players:GetPlayerFromCharacter(cand)
+                    if p then lastHitTarget = cand end
+                end
             end
         end
     elseif input.KeyCode == KEYS.Toggle then
@@ -61,22 +62,87 @@ UIS.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- Remote hook
+-- helper: try set lastHitTarget from Replication payload (some events include Target or Look)
+local function trySetLastFromPayload(tbl)
+    if type(tbl) ~= "table" then return end
+    -- some payloads use field 'Target' (Model) or 'Look' (BasePart)
+    local ok = false
+    if tbl.Target and typeof(tbl.Target) == "Instance" then
+        local t = tbl.Target
+        if t:IsA("Model") and t:FindFirstChild("Humanoid") then
+            lastHitTarget = t
+            ok = true
+        elseif t:IsA("BasePart") and t.Parent and t.Parent:FindFirstChild("Humanoid") then
+            lastHitTarget = t.Parent
+            ok = true
+        end
+    end
+    if not ok and tbl.Look and typeof(tbl.Look) == "Instance" then
+        local p = tbl.Look
+        if p:IsA("BasePart") and p.Parent and p.Parent:FindFirstChild("Humanoid") then
+            lastHitTarget = p.Parent
+            ok = true
+        end
+    end
+    -- some payloads might include fields like 'LookAt' or 'Hit' — handle generically
+    if not ok then
+        for k,v in pairs(tbl) do
+            if typeof(v) == "Instance" and v:IsA("BasePart") and v.Parent and v.Parent:FindFirstChild("Humanoid") then
+                lastHitTarget = v.Parent
+                ok = true
+                break
+            end
+        end
+    end
+end
+
+-- find Replication RemoteEvent
 local repConn
 do
     local replication = ReplicatedStorage:FindFirstChild("Replication")
+    if not replication then
+        -- fallback: search descendants (some games put it elsewhere)
+        for _, inst in ipairs(game:GetDescendants()) do
+            if inst:IsA("RemoteEvent") and inst.Name == "Replication" then
+                replication = inst
+                break
+            end
+        end
+    end
+
     if replication and replication:IsA("RemoteEvent") then
         repConn = replication.OnClientEvent:Connect(function(arg1)
+            -- try update lastHitTarget from any incoming payload that contains a hit part
+            pcall(function() trySetLastFromPayload(arg1) end)
+
             if not active then return end
-            if typeof(arg1) ~= "table" then return end
+            if type(arg1) ~= "table" then return end
             if not arg1.Name or arg1.Name ~= DashSignalName then return end
             if not _G.DXERR_KIBA.lastDashTime or tick() - _G.DXERR_KIBA.lastDashTime > dashWindow then return end
 
-            if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                local myRoot = LP.Character.HumanoidRootPart
-                local targetRoot = lastHitTarget.HumanoidRootPart
-                local look = CFrame.new(myRoot.Position, targetRoot.Position)
-                LP.Character:PivotTo(look)
+            -- now perform orientation lock (client-side only)
+            if lastHitTarget and LP.Character then
+                local ok, myRoot = pcall(function() return LP.Character:FindFirstChild("HumanoidRootPart") end)
+                if not ok or not myRoot then return end
+                local ok2, targetRoot = pcall(function() return lastHitTarget:FindFirstChild("HumanoidRootPart") end)
+                if not ok2 or not targetRoot then return end
+
+                -- debug print (useful to see trigger)
+                print("[DXERR Kiba] Frontdash event received. Locking to:", lastHitTarget.Name or tostring(lastHitTarget))
+
+                -- keep orienting towards target during short lockDuration to make dash "aim" feel consistent
+                spawn(function()
+                    local t0 = tick()
+                    while tick() - t0 < lockDuration do
+                        if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then break end
+                        if not lastHitTarget or not lastHitTarget.Parent or not lastHitTarget:FindFirstChild("HumanoidRootPart") then break end
+                        local myHRP = LP.Character.HumanoidRootPart
+                        local tgtHRP = lastHitTarget.HumanoidRootPart
+                        local look = CFrame.new(myHRP.Position, Vector3.new(tgtHRP.Position.X, myHRP.Position.Y, tgtHRP.Position.Z))
+                        pcall(function() LP.Character:PivotTo(look) end)
+                        RunService.RenderStepped:Wait()
+                    end
+                end)
             end
         end)
     else
@@ -84,17 +150,11 @@ do
     end
 end
 
--- Persist after respawn
-local function onCharAdded(char)
-    char:WaitForChild("HumanoidRootPart")
-end
-if LP.Character then onCharAdded(LP.Character) end
-LP.CharacterAdded:Connect(onCharAdded)
-
+-- cleanup
 _G.DXERR_KIBA.cleanup = function()
     pcall(function() if repConn then repConn:Disconnect() end end)
-    pcall(function() gui:Destroy() end)
+    pcall(function() if gui then gui:Destroy() end end)
     _G.DXERR_KIBA = nil
 end
 
-print("✅ DXERR Kiba Tech v5.7.1 aktif. Toggle:", KEYS.Toggle.Name)
+print("✅ DXERR Kiba Tech v5.7.2 siap. Toggle:", KEYS.Toggle.Name)
