@@ -1,4 +1,4 @@
--- DXERR Kiba Tech v5.7 (Frontdash Lock to LastHit, No Auto M1)
+-- DXERR Kiba Tech v5.7.1 (Fix Replication Arg Check)
 
 if _G.DXERR_KIBA and _G.DXERR_KIBA.cleanup then
     _G.DXERR_KIBA.cleanup()
@@ -44,9 +44,9 @@ end
 -- Track last hit target
 local lastHitTarget = nil
 
--- Detect M1 hit target (via mouse click)
 UIS.InputBegan:Connect(function(input, gp)
-    if not gp and input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local mouse = LP:GetMouse()
         if mouse.Target and mouse.Target.Parent then
             local plr = Players:GetPlayerFromCharacter(mouse.Target.Parent)
@@ -54,16 +54,10 @@ UIS.InputBegan:Connect(function(input, gp)
                 lastHitTarget = plr.Character
             end
         end
-    elseif not gp and input.KeyCode == KEYS.Toggle then
+    elseif input.KeyCode == KEYS.Toggle then
         toggle()
-    end
-end)
-
--- Dash orientation lock
-local lastDashKeyTime = 0
-UIS.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == KEYS.Dash then
-        lastDashKeyTime = tick()
+    elseif input.KeyCode == KEYS.Dash then
+        _G.DXERR_KIBA.lastDashTime = tick()
     end
 end)
 
@@ -75,8 +69,8 @@ do
         repConn = replication.OnClientEvent:Connect(function(arg1)
             if not active then return end
             if typeof(arg1) ~= "table" then return end
-            if arg1.Name ~= DashSignalName then return end
-            if tick() - lastDashKeyTime > dashWindow then return end
+            if not arg1.Name or arg1.Name ~= DashSignalName then return end
+            if not _G.DXERR_KIBA.lastDashTime or tick() - _G.DXERR_KIBA.lastDashTime > dashWindow then return end
 
             if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
                 local myRoot = LP.Character.HumanoidRootPart
@@ -103,4 +97,4 @@ _G.DXERR_KIBA.cleanup = function()
     _G.DXERR_KIBA = nil
 end
 
-print("✅ DXERR Kiba Tech v5.7 aktif. Toggle:", KEYS.Toggle.Name)
+print("✅ DXERR Kiba Tech v5.7.1 aktif. Toggle:", KEYS.Toggle.Name)
