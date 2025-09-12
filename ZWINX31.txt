@@ -1,60 +1,126 @@
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
-local LP = Players.LocalPlayer
-local KIBA_MODE = false
+local DASH_REMOTE_NAME = "Forward Dash Attack"
+local HITBOX_MULT = 3
+local LOCK_OFFSET = Vector3.new(0,5,0)
+
 local lastHitTarget = nil
-local toggleKey = Enum.KeyCode.R
-local dashKey = Enum.KeyCode.Q
+local LOCK_ENABLED = false
+local currentRoot = nil
+local isUppercutActive = false
 
--- GUI kecil
-local gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
-gui.ResetOnSpawn = false
-local box = Instance.new("Frame", gui)
-box.Size = UDim2.new(0,10,0,10)
-box.Position = UDim2.new(1,-20,1,-40)
-box.BackgroundColor3 = Color3.fromRGB(255,0,0)
+-- GUI
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.ResetOnSpawn = false
+local StatusBox = Instance.new("Frame", ScreenGui)
+StatusBox.Size = UDim2.new(0,20,0,20)
+StatusBox.Position = UDim2.new(1,-30,1,-30)
+StatusBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
 
 local function updateGUI()
-	box.BackgroundColor3 = KIBA_MODE and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    StatusBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 end
 
-UIS.InputBegan:Connect(function(input,gp)
-	if gp then return end
-	if input.KeyCode == toggleKey then
-		KIBA_MODE = not KIBA_MODE
-		updateGUI()
-	elseif input.KeyCode == dashKey and KIBA_MODE then
-		if lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
-			local myChar = LP.Character
-			if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-				local myHRP = myChar.HumanoidRootPart
-				local tgtHRP = lastHitTarget.HumanoidRootPart
+local function updateLastHit(target)
+    lastHitTarget = target
+end
 
-				-- lock orientasi tubuh selama 0.35 detik
-				local start = tick()
-				while tick() - start < 0.35 do
-					if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then break end
-					if not tgtHRP or not tgtHRP.Parent then break end
-					myChar:PivotTo(CFrame.new(myHRP.Position, tgtHRP.Position))
-					RunService.RenderStepped:Wait()
-				end
-			end
-		end
-	end
+local function applyBuff(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+    local part = target.HumanoidRootPart
+    local origSize = part.Size
+    part.Size = part.Size * HITBOX_MULT
+    task.delay(0.45, function()
+        if part and part.Parent then
+            pcall(function()
+                part.Size = origSize
+            end)
+        end
+    end)
+end
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = LocalPlayer:GetMouse()
+        if mouse.Target and mouse.Target.Parent then
+            if Players:FindFirstChild(mouse.Target.Parent.Name) then
+                updateLastHit(mouse.Target.Parent)
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.R then
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        isUppercutActive = true
+        task.wait(0.5)
+        isUppercutActive = false
+    end
 end)
 
--- update last target kalau kena hit (harus disesuaikan dengan event hit game kamu)
--- contoh sederhana: klik kiri pada player lain
-UIS.InputBegan:Connect(function(input,gp)
-	if gp then return end
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		local m = LP:GetMouse()
-		if m.Target and m.Target.Parent and Players:FindFirstChild(m.Target.Parent.Name) then
-			lastHitTarget = m.Target.Parent
-		end
-	end
+RunService.RenderStepped:Connect(function()
+    if not currentRoot then return end
+    if LOCK_ENABLED and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        if isUppercutActive then
+            local dir = (targetRoot.Position + LOCK_OFFSET - currentRoot.Position).Unit
+            currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+        end
+    end
 end)
+
+-- Helper
+local function forceTeleportToTarget(targetRoot)
+    if not currentRoot then return end
+    -- posisikan player tepat 3 stud di depan target
+    local targetPos = targetRoot.Position + LOCK_OFFSET
+    local backDir = (currentRoot.Position - targetPos).Unit
+    local newPos = targetPos + backDir * 3
+    currentRoot.CFrame = CFrame.new(newPos, targetPos)
+end
+
+local function dashToTarget(targetRoot)
+    if not currentRoot or not targetRoot then return end
+    -- Pindahkan player ke depan target agar benar2 kena
+    forceTeleportToTarget(targetRoot)
+    -- Tambahkan kecepatan maju
+    local dir = (targetRoot.Position - currentRoot.Position).Unit
+    currentRoot.AssemblyLinearVelocity = dir * 120
+end
+
+-- Dash listener
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if lastHitTarget and currentRoot then
+                LOCK_ENABLED = true
+                updateGUI()
+                applyBuff(lastHitTarget)
+
+                local targetRoot = lastHitTarget:FindFirstChild("HumanoidRootPart")
+                if targetRoot then
+                    dashToTarget(targetRoot)
+                end
+            end
+        end)
+    end
+end
+
+-- Saat respawn
+local function onCharacterAdded(char)
+    currentRoot = char:WaitForChild("HumanoidRootPart")
+    -- jaga lock tetap aktif
+    task.wait(0.2)
+    updateGUI()
+end
+
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 
 updateGUI()
