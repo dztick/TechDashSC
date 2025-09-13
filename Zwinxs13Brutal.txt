@@ -1,0 +1,91 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local DASH_REMOTE_NAME = "Forward Dash Attack"
+local LOCK_OFFSET = Vector3.new(0, 5, 0)
+
+local lastHitTarget = nil
+local LOCK_ENABLED = false
+local currentRoot, humanoid = nil, nil
+
+-- GUI lock status
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.ResetOnSpawn = false
+
+local LockBox = Instance.new("Frame", ScreenGui)
+LockBox.Size = UDim2.new(0,20,0,20)
+LockBox.Position = UDim2.new(1,-30,1,-30)
+LockBox.BackgroundColor3 = Color3.fromRGB(255,0,0)
+
+local function updateGUI()
+    LockBox.BackgroundColor3 = LOCK_ENABLED and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+end
+
+local function updateLastHit(target)
+    lastHitTarget = target
+end
+
+local function playDashAnim()
+    if humanoid then
+        local DashAnim = Instance.new("Animation")
+        DashAnim.AnimationId = "rbxassetid://10479335397" -- anim dash
+        local track = humanoid:LoadAnimation(DashAnim)
+        track:Play()
+    end
+end
+
+-- input
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mouse = LocalPlayer:GetMouse()
+        if mouse.Target and mouse.Target.Parent then
+            if Players:FindFirstChild(mouse.Target.Parent.Name) then
+                updateLastHit(mouse.Target.Parent)
+            end
+        end
+    elseif input.KeyCode == Enum.KeyCode.R then
+        LOCK_ENABLED = not LOCK_ENABLED
+        updateGUI()
+    end
+end)
+
+-- auto lock arah badan
+RunService.RenderStepped:Connect(function()
+    if LOCK_ENABLED and currentRoot and lastHitTarget and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lastHitTarget.HumanoidRootPart
+        local dir = (targetRoot.Position + LOCK_OFFSET - currentRoot.Position).Unit
+        currentRoot.CFrame = CFrame.new(currentRoot.Position, currentRoot.Position + dir)
+    end
+end)
+
+-- brutal dash (selalu di bawah target → mental pendek)
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+    if obj:IsA("RemoteEvent") and obj.Name == DASH_REMOTE_NAME then
+        obj.OnClientEvent:Connect(function()
+            if LOCK_ENABLED and lastHitTarget and currentRoot and lastHitTarget:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = lastHitTarget.HumanoidRootPart
+                -- posisi di bawah target, mental pendek
+                currentRoot.CFrame = targetRoot.CFrame * CFrame.new(0, -3, -2)
+                playDashAnim()
+            end
+        end)
+    end
+end
+
+-- respawn handler
+local function onCharacterAdded(char)
+    currentRoot = char:WaitForChild("HumanoidRootPart")
+    humanoid = char:WaitForChild("Humanoid")
+    updateGUI()
+end
+
+if LocalPlayer.Character then
+    onCharacterAdded(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+updateGUI()
