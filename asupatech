@@ -1,0 +1,121 @@
+--// Frontdash Auto Align Smooth (BodyMover Version)
+--// Toggle Key = R
+--// Dash Key = Q
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HRP = Character:WaitForChild("HumanoidRootPart")
+
+local Enabled = true
+local DashKey = Enum.KeyCode.Q
+local ToggleKey = Enum.KeyCode.R
+local MaxTargetDist = 10
+local Tracking = false
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local StatusBox = Instance.new("Frame", ScreenGui)
+StatusBox.Size = UDim2.new(0,15,0,15)
+StatusBox.Position = UDim2.new(1,-25,1,-25)
+StatusBox.BackgroundColor3 = Color3.fromRGB(30,120,30)
+StatusBox.BorderSizePixel = 0
+
+local function UpdateGUI()
+    StatusBox.BackgroundColor3 = Enabled and Color3.fromRGB(30,120,30) or Color3.fromRGB(120,30,30)
+end
+
+local function Toggle()
+    Enabled = not Enabled
+    UpdateGUI()
+end
+
+-- Respawn refresh
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    HRP = char:WaitForChild("HumanoidRootPart")
+end)
+
+-- Cari target di udara
+local function GetClosestTarget()
+    local closest, dist
+    for _,plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local root = plr.Character.HumanoidRootPart
+            local d = (root.Position - HRP.Position).Magnitude
+            if d <= MaxTargetDist and (not dist or d < dist) then
+                if root.Position.Y > HRP.Position.Y + 2 then
+                    closest, dist = root, d
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Smooth Move pakai BodyPosition
+local function SmoothMove(targetPos, time)
+    local bp = Instance.new("BodyPosition")
+    bp.MaxForce = Vector3.new(1e5,1e5,1e5)
+    bp.P = 5e4
+    bp.D = 2e3
+    bp.Position = targetPos
+    bp.Parent = HRP
+
+    task.delay(time, function()
+        bp:Destroy()
+    end)
+end
+
+-- Dash Input
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == ToggleKey then
+        Toggle()
+    elseif input.KeyCode == DashKey and Enabled and not Tracking then
+        Tracking = true
+        local target = GetClosestTarget()
+
+        task.wait(0.1) -- delay biar natural
+
+        if target then
+            -- Ada target → ke bawah target & terus menghadap target
+            local targetPos = target.Position - Vector3.new(0,1,0)
+            SmoothMove(targetPos,0.35)
+
+            -- Jaga arah badan ke target selama dash
+            local align = Instance.new("BodyGyro")
+            align.MaxTorque = Vector3.new(1e5,1e5,1e5)
+            align.P = 5e4
+            align.CFrame = CFrame.new(HRP.Position, target.Position)
+            align.Parent = HRP
+
+            task.wait(0.35) -- durasi dash
+            align:Destroy()
+        else
+            -- Dash normal: maju dulu → lalu naik
+            local forward = HRP.CFrame.Position + (HRP.CFrame.LookVector * 2)
+            SmoothMove(forward,0.15)
+            task.wait(0.15)
+
+            local up = HRP.Position + Vector3.new(0,math.random(7,8),0)
+            SmoothMove(up,0.25)
+
+            -- Menghadap ke atas
+            local align = Instance.new("BodyGyro")
+            align.MaxTorque = Vector3.new(1e5,1e5,1e5)
+            align.P = 5e4
+            align.CFrame = CFrame.new(HRP.Position, HRP.Position + Vector3.new(0,1,0))
+            align.Parent = HRP
+
+            task.wait(0.25)
+            align:Destroy()
+        end
+
+        task.wait(0.5)
+        Tracking = false
+    end
+end)
+
+UpdateGUI()
